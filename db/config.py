@@ -20,3 +20,9 @@ def get_db_pool_size():
 
 def get_db_max_overflow():
   return int(os.environ["DB_MAX_OVERFLOW"])
+
+def get_jwt_secret():
+  return os.environ["JWT_SECRET"]
+
+def get_jwt_expiry_hours() -> int:
+  return int(os.environ.get("JWT_EXPIRY_HOURS", "24"))

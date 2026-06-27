@@ -1,16 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy import Connection
+from db.engine import db_conn
+from app.api.auth.schemas import LoginRequest, LoginResponse
+from app.services.auth.auth_services import login
 
-router = APIRouter(prefix = "/api/v1/auth")
+router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 
-@router.post("/login")
-def login(request):
-  return
-
-@router.get("/me")
-def me(user):
-  return user
-
-@router.post("/logout")
-def logout(request):
-  return
+@router.post("/login", response_model=LoginResponse)
+def login_endpoint(body: LoginRequest, conn: Connection = Depends(db_conn)):
+    return login(conn, body.provider, body.token)

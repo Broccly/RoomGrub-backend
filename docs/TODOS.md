@@ -9,16 +9,6 @@
 - [ ] Create `app/database.py` — async SQLAlchemy engine, session factory, `get_db` dependency
 - [ ] Create `tests/conftest.py` — test DB fixture, override `get_db`, test client
 
-## ORM Models
-- [ ] `app/models/user.py` — User
-- [ ] `app/models/room.py` — Room
-- [ ] `app/models/user_room.py` — UserRoom
-- [ ] `app/models/spendings.py` — Spendings (expense)
-- [ ] `app/models/balance.py` — Balance (settlement ledger)
-- [ ] `app/models/invite.py` — Invite
-- [ ] `app/models/notification.py` — Notification
-- [ ] `app/models/push_subscription.py` — PushSubscription
-
 ## Pydantic Schemas
 - [ ] `app/schemas/auth.py` — UserSyncRequest, UserResponse
 - [ ] `app/schemas/room.py` — RoomResponse, RoomSummary, MemberStat, DashboardResponse

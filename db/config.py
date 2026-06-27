@@ -1,0 +1,22 @@
+import os
+
+def get_db_name():
+  return os.environ["DB_NAME"]
+
+def get_db_host():
+  return os.environ["DB_HOST"]
+
+def get_db_port():
+  return os.environ["DB_PORT"]
+
+def get_db_user():
+  return os.environ["DB_USER"]
+
+def get_db_password():
+  return os.environ["DB_PASSWORD"]
+
+def get_db_pool_size():
+  return int(os.environ["DB_POOL_SIZE"])
+
+def get_db_max_overflow():
+  return int(os.environ["DB_MAX_OVERFLOW"])

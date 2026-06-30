@@ -55,15 +55,63 @@ def get_expenses(
     return [dict(r._mapping) for r in rows]
 
 
+def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
+    row = conn.execute(
+        text("""
+            SELECT id, room, "user", material, money, created_at, settled
+            FROM Spendings WHERE id = :expense_id
+        """),
+        {"expense_id": expense_id},
+    ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def update_expense(
+    conn: Connection,
+    expense_id: int,
+    material: str | None,
+    money: float | None,
+    created_at,
+) -> dict:
+    fields = []
+    params: dict = {"expense_id": expense_id}
+    if material is not None:
+        fields.append("material = :material")
+        params["material"] = material
+    if money is not None:
+        fields.append("money = :money")
+        params["money"] = money
+    if created_at is not None:
+        fields.append("created_at = :created_at")
+        params["created_at"] = created_at
+
+    row = conn.execute(
+        text(f"""
+            UPDATE Spendings SET {', '.join(fields)}
+            WHERE id = :expense_id
+            RETURNING id, room, "user", material, money, created_at, settled
+        """),
+        params,
+    ).fetchone()
+    return dict(row._mapping)
+
+
+def delete_expense(conn: Connection, expense_id: int) -> None:
+    conn.execute(
+        text("DELETE FROM Spendings WHERE id = :expense_id"),
+        {"expense_id": expense_id},
+    )
+
+
 def insert_expense(
-    conn: Connection, room_id: int, user_email: str, material: str, money: float
+    conn: Connection, room_id: int, user_email: str, material: str, money: float, created_at=None
 ) -> dict:
     row = conn.execute(
         text("""
             INSERT INTO Spendings (room, "user", material, money, created_at)
-            VALUES (:room_id, :user_email, :material, :money, NOW())
+            VALUES (:room_id, :user_email, :material, :money, COALESCE(:created_at, NOW()))
             RETURNING id, room, "user", material, money, created_at, settled
         """),
-        {"room_id": room_id, "user_email": user_email, "material": material, "money": money},
+        {"room_id": room_id, "user_email": user_email, "material": material, "money": money, "created_at": created_at},
     ).fetchone()
     return dict(row._mapping)

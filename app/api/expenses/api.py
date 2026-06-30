@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.current_user import get_current_user
@@ -6,6 +6,7 @@ from app.dependencies.room_access import require_room_admin
 from app.api.expenses.schemas import (
     ExpenseCreate,
     ExpenseForMemberCreate,
+    ExpenseUpdate,
     ExpenseResponse,
     PaginatedExpenses,
 )
@@ -41,7 +42,33 @@ def add_expense(
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
 ):
-    return expenses_services.add_expense(conn, room_id, body.material, body.money, current_user)
+    return expenses_services.add_expense(conn, room_id, body.material, body.money, current_user, body.created_at)
+
+
+@router.patch("/{room_id}/expenses/{expense_id}", response_model=ExpenseResponse)
+def edit_expense(
+    room_id: int,
+    expense_id: int,
+    body: ExpenseUpdate,
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_admin),
+):
+    return expenses_services.edit_expense(
+        conn, room_id, expense_id,
+        body.material, body.money, body.created_at,
+        membership["user"],
+    )
+
+
+@router.delete("/{room_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_expense(
+    room_id: int,
+    expense_id: int,
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_admin),
+):
+    expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -56,5 +83,5 @@ def add_expense_for_member(
     membership: dict = Depends(require_room_admin),
 ):
     return expenses_services.add_expense_for_member(
-        conn, room_id, body.material, body.money, body.user_email
+        conn, room_id, body.material, body.money, body.user_email, body.created_at
     )

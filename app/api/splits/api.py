@@ -35,4 +35,11 @@ def settle_all(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ):
-    splits_services.settle_all(conn, room_id, [m.model_dump() for m in body.members])
+    splits_services.settle_all(
+        conn,
+        room_id,
+        [m.model_dump() for m in body.members],
+        date_from=body.date_from,
+        date_to=body.date_to,
+        member_emails=body.member_emails,
+    )

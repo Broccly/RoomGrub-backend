@@ -28,3 +28,6 @@ class SettleRequest(BaseModel):
 
 class SettleAllRequest(BaseModel):
     members: list[SettleRequest]
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    member_emails: list[str] | None = None

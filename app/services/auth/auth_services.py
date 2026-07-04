@@ -1,18 +1,7 @@
-from datetime import datetime, timedelta, timezone
-import jwt
 from sqlalchemy import Connection
-from db.config import get_jwt_secret, get_jwt_expiry_hours
 from app.models.auth.auth_model import upsert_user
 from app.utils.auth_providers import verify_provider_token
-
-
-def _create_jwt(user: dict) -> str:
-    payload = {
-        "sub": str(user["id"]),
-        "email": user["email"],
-        "exp": datetime.now(timezone.utc) + timedelta(hours=get_jwt_expiry_hours()),
-    }
-    return jwt.encode(payload, get_jwt_secret(), algorithm="HS256")
+from app.utils.jwt_utils import create_jwt
 
 
 def login(conn: Connection, provider: str, token: str) -> dict:
@@ -25,7 +14,7 @@ def login(conn: Connection, provider: str, token: str) -> dict:
         profile=user_info["picture"],
     )
     return {
-        "access_token": _create_jwt(user),
+        "access_token": create_jwt(user),
         "token_type": "bearer",
         "user": user,
     }

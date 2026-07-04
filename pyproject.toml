@@ -1,14 +1,15 @@
 [project]
 name = "RoomGrub-backend"
 version = "0.0.1"
-description = "Expense splitter app for friends and family groups
+description = "Expense splitter app for friends and family groups"
 authors = [
-  {name: "Sankar Swain", email: "s.sankar@broccly.in"}
+  {name = "Sankar Swain", email = "s.sankar@broccly.in"}
 ]
 readme = "README.md"
 dependencies = [
     "fastapi >= 0.138.0",
     "uvicorn[standard] >= 0.49.0",
     "pydantic >= 2.13.14",
-    "alembic >= 1.18.5"
+    "alembic >= 1.18.5",
+    "PyJWT >= 2.8"
 ]

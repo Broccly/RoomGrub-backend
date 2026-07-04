@@ -54,10 +54,3 @@ def insert_member(conn: Connection, user_id: int, room_id: int) -> None:
         """),
         {"user_id": user_id, "room_id": room_id},
     )
-
-
-def increment_room_members(conn: Connection, room_id: int) -> None:
-    conn.execute(
-        text("UPDATE Rooms SET members = members + 1 WHERE id = :room_id"),
-        {"room_id": room_id},
-    )

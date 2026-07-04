@@ -8,7 +8,6 @@ from app.models.members.members_model import (
     update_member_role,
     remove_user_room,
     get_my_membership,
-    decrement_room_members,
     insert_balance_debit,
     insert_balance_credit,
 )
@@ -52,7 +51,6 @@ def remove_member(
             status_code=400, detail="Admin cannot remove themselves. Use /members/me to exit."
         )
     remove_user_room(conn, room_id, member_id)
-    decrement_room_members(conn, room_id)
 
 
 def exit_room(conn: Connection, room_id: int, current_user: dict) -> None:
@@ -64,7 +62,6 @@ def exit_room(conn: Connection, room_id: int, current_user: dict) -> None:
             status_code=400, detail="Admin cannot exit the room. Transfer admin role first."
         )
     remove_user_room(conn, room_id, membership["id"])
-    decrement_room_members(conn, room_id)
 
 
 def settle_member(conn: Connection, room_id: int, member_id: int) -> None:

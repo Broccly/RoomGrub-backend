@@ -14,10 +14,10 @@ from app.models.rooms.rooms_model import (
 )
 
 
-def create_room(conn: Connection, budget: float | None, current_user: dict) -> dict:
-    room = insert_room(conn, admin_email=current_user["email"], budget=budget)
+def create_room(conn: Connection, current_user: dict) -> dict:
+    room = insert_room(conn)
     insert_user_room(conn, user_id=current_user["id"], room_id=room["id"], role="Admin")
-    return room
+    return {**room, "members": 1, "admin": current_user["email"]}
 
 
 def list_rooms(conn: Connection, current_user: dict) -> list[dict]:
@@ -42,12 +42,10 @@ def get_room_dashboard(conn: Connection, room_id: int) -> dict:
     return {"room": room, "members": members}
 
 
-def delete_room(conn: Connection, room_id: int, current_user: dict) -> None:
+def delete_room(conn: Connection, room_id: int) -> None:
     room = get_room_by_id(conn, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if room["admin"] != current_user["email"]:
-        raise HTTPException(status_code=403, detail="Only the room admin can delete this room")
     unsettled = count_unsettled_expenses(conn, room_id)
     if unsettled > 0:
         raise HTTPException(

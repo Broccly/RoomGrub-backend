@@ -2,14 +2,9 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-class RoomCreate(BaseModel):
-    budget: float | None = None
-
-
 class RoomResponse(BaseModel):
     id: int
     members: int
-    budget: float | None
     admin: str
 
 

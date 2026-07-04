@@ -7,7 +7,6 @@ from app.models.invites.invites_model import (
     update_invite_status,
     check_membership,
     insert_member,
-    increment_room_members,
 )
 
 INVITE_EXPIRY_DAYS = 7
@@ -52,7 +51,6 @@ def accept_invite(conn: Connection, token: str, current_user: dict) -> dict:
         return {"room_id": room_id, "message": "Already a member"}
 
     insert_member(conn, current_user["id"], room_id)
-    increment_room_members(conn, room_id)
     update_invite_status(conn, token, "accepted")
     return {"room_id": room_id, "message": "Joined room successfully"}
 

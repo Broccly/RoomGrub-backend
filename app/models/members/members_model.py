@@ -81,13 +81,6 @@ def get_my_membership(conn: Connection, room_id: int, user_id: int) -> dict | No
     return dict(row._mapping) if row else None
 
 
-def decrement_room_members(conn: Connection, room_id: int) -> None:
-    conn.execute(
-        text("UPDATE Rooms SET members = members - 1 WHERE id = :room_id"),
-        {"room_id": room_id},
-    )
-
-
 def insert_balance_debit(conn: Connection, room_id: int, user_email: str, amount: float) -> None:
     conn.execute(
         text("""

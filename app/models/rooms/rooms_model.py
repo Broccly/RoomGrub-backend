@@ -1,14 +1,9 @@
 from sqlalchemy import Connection, text
 
 
-def insert_room(conn: Connection, admin_email: str, budget: float | None) -> dict:
+def insert_room(conn: Connection) -> dict:
     row = conn.execute(
-        text("""
-            INSERT INTO Rooms (members, admin, budget)
-            VALUES (1, :admin, :budget)
-            RETURNING id, members, admin, budget
-        """),
-        {"admin": admin_email, "budget": budget},
+        text('INSERT INTO "Rooms" DEFAULT VALUES RETURNING id'),
     ).fetchone()
     return dict(row._mapping)
 
@@ -26,9 +21,12 @@ def insert_user_room(conn: Connection, user_id: int, room_id: int, role: str = "
 def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
-            SELECT r.id, r.members, r.admin, r.budget
-            FROM Rooms r
-            JOIN UserRooms ur ON ur.room_id = r.id
+            SELECT r.id,
+                   (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
+                   (SELECT u.email FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
+                    WHERE ur2.room_id = r.id AND ur2.role = 'Admin' LIMIT 1) AS admin
+            FROM "Rooms" r
+            JOIN "UserRooms" ur ON ur.room_id = r.id
             WHERE ur.user_id = :user_id
             ORDER BY r.id DESC
         """),
@@ -39,7 +37,13 @@ def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
 
 def get_room_by_id(conn: Connection, room_id: int) -> dict | None:
     row = conn.execute(
-        text("SELECT id, members, admin, budget FROM Rooms WHERE id = :room_id"),
+        text("""
+            SELECT r.id,
+                   (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
+                   (SELECT u.email FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
+                    WHERE ur2.room_id = r.id AND ur2.role = 'Admin' LIMIT 1) AS admin
+            FROM "Rooms" r WHERE r.id = :room_id
+        """),
         {"room_id": room_id},
     ).fetchone()
     return dict(row._mapping) if row else None

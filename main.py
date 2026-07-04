@@ -33,7 +33,8 @@ app.include_router(expenses_router)
 app.include_router(members_router)
 app.include_router(splits_router)
 app.include_router(invites_router)
-app.include_router(notifications_router)
+# Notifications disabled for now — routes kept in codebase, not wired up.
+# app.include_router(notifications_router)
 
 
 @app.get("/health")

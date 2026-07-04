@@ -1,7 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy import Connection
 from app.models.expenses.expenses_model import get_expenses, insert_expense, get_expense_by_id, update_expense, delete_expense
-from app.models.notifications.notifications_model import insert_notification
 
 
 def list_expenses(
@@ -61,16 +60,6 @@ def edit_expense(
 
     updated = update_expense(conn, expense_id, material, money, created_at)
 
-    insert_notification(
-        conn,
-        room_id=room_id,
-        triggered_by=admin_user["id"],
-        activity_type="expense_edited",
-        title="Expense updated",
-        message=f"An expense was updated to \"{updated['material']}\" for ₹{updated['money']:.2f}",
-        data={"expense_id": expense_id},
-    )
-
     return updated
 
 
@@ -87,13 +76,3 @@ def remove_expense(
         raise HTTPException(status_code=404, detail="Expense does not belong to this room")
 
     delete_expense(conn, expense_id)
-
-    insert_notification(
-        conn,
-        room_id=room_id,
-        triggered_by=admin_user["id"],
-        activity_type="expense_deleted",
-        title="Expense deleted",
-        message=f"An expense \"{expense['material']}\" of ₹{expense['money']:.2f} was deleted",
-        data={"expense_id": expense_id},
-    )

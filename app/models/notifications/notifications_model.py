@@ -13,7 +13,7 @@ def insert_notification(
 ) -> dict:
     row = conn.execute(
         text("""
-            INSERT INTO Notification (room_id, triggered_by, activity_type, title, message, data, created_at)
+            INSERT INTO notifications (room_id, triggered_by, activity_type, title, message, data, created_at)
             VALUES (:room_id, :triggered_by, :activity_type, :title, :message, :data, NOW())
             RETURNING id, room_id, activity_type, title, message, created_at
         """),
@@ -33,7 +33,7 @@ def get_notifications(conn: Connection, room_id: int, limit: int = 50) -> list[d
     rows = conn.execute(
         text("""
             SELECT id, room_id, activity_type, title, message, created_at
-            FROM Notification
+            FROM notifications
             WHERE room_id = :room_id
             ORDER BY created_at DESC
             LIMIT :limit

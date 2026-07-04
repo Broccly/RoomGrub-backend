@@ -5,8 +5,8 @@ def get_members(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
             SELECT ur.id, u.id AS user_id, u.email, u.name, ur.role, ur.joined_at
-            FROM UserRooms ur
-            JOIN Users u ON u.id = ur.user_id
+            FROM "UserRooms" ur
+            JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id
             ORDER BY ur.joined_at ASC
         """),
@@ -19,8 +19,8 @@ def get_member_by_id(conn: Connection, room_id: int, member_id: int) -> dict | N
     row = conn.execute(
         text("""
             SELECT ur.id, u.id AS user_id, u.email, u.name, ur.role, ur.joined_at
-            FROM UserRooms ur
-            JOIN Users u ON u.id = ur.user_id
+            FROM "UserRooms" ur
+            JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id AND ur.id = :member_id
         """),
         {"room_id": room_id, "member_id": member_id},
@@ -32,7 +32,7 @@ def get_member_expenses(conn: Connection, room_id: int, user_email: str) -> list
     rows = conn.execute(
         text("""
             SELECT id, material, money, created_at, settled
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id AND "user" = :email
             ORDER BY created_at DESC
         """),
@@ -45,7 +45,7 @@ def get_member_pending(conn: Connection, room_id: int, user_email: str) -> float
     row = conn.execute(
         text("""
             SELECT COALESCE(SUM(money), 0) AS pending
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id AND "user" = :email
               AND (settled IS NULL OR settled = FALSE)
         """),
@@ -56,14 +56,14 @@ def get_member_pending(conn: Connection, room_id: int, user_email: str) -> float
 
 def update_member_role(conn: Connection, room_id: int, member_id: int, role: str) -> None:
     conn.execute(
-        text("UPDATE UserRooms SET role = :role WHERE id = :member_id AND room_id = :room_id"),
+        text('UPDATE "UserRooms" SET role = :role WHERE id = :member_id AND room_id = :room_id'),
         {"role": role, "member_id": member_id, "room_id": room_id},
     )
 
 
 def remove_user_room(conn: Connection, room_id: int, member_id: int) -> None:
     conn.execute(
-        text("DELETE FROM UserRooms WHERE id = :member_id AND room_id = :room_id"),
+        text('DELETE FROM "UserRooms" WHERE id = :member_id AND room_id = :room_id'),
         {"member_id": member_id, "room_id": room_id},
     )
 
@@ -72,8 +72,8 @@ def get_my_membership(conn: Connection, room_id: int, user_id: int) -> dict | No
     row = conn.execute(
         text("""
             SELECT ur.id, u.email, ur.role
-            FROM UserRooms ur
-            JOIN Users u ON u.id = ur.user_id
+            FROM "UserRooms" ur
+            JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id AND ur.user_id = :user_id
         """),
         {"room_id": room_id, "user_id": user_id},

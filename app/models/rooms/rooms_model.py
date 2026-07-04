@@ -16,7 +16,7 @@ def insert_room(conn: Connection, admin_email: str, budget: float | None) -> dic
 def insert_user_room(conn: Connection, user_id: int, room_id: int, role: str = "Admin") -> None:
     conn.execute(
         text("""
-            INSERT INTO UserRooms (user_id, room_id, role, joined_at)
+            INSERT INTO "UserRooms" (user_id, room_id, role, joined_at)
             VALUES (:user_id, :room_id, :role, NOW())
         """),
         {"user_id": user_id, "room_id": room_id, "role": role},
@@ -49,7 +49,7 @@ def get_total_spent(conn: Connection, room_id: int) -> float:
     row = conn.execute(
         text("""
             SELECT COALESCE(SUM(money), 0) AS total
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id
         """),
         {"room_id": room_id},
@@ -61,7 +61,7 @@ def get_pending_amount(conn: Connection, room_id: int) -> float:
     row = conn.execute(
         text("""
             SELECT COALESCE(SUM(money), 0) AS pending
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
         """),
@@ -74,7 +74,7 @@ def get_recent_expenses(conn: Connection, room_id: int, limit: int = 5) -> list[
     rows = conn.execute(
         text("""
             SELECT id, material, money, "user", created_at
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id
             ORDER BY created_at DESC
             LIMIT :limit
@@ -94,9 +94,9 @@ def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
                 ur.role,
                 COALESCE(SUM(s.money), 0) AS total_spent,
                 COALESCE(SUM(CASE WHEN s.settled IS NOT TRUE THEN s.money ELSE 0 END), 0) AS pending_amount
-            FROM UserRooms ur
-            JOIN Users u ON u.id = ur.user_id
-            LEFT JOIN Spendings s ON s."user" = u.email AND s.room = ur.room_id
+            FROM "UserRooms" ur
+            JOIN "Users" u ON u.id = ur.user_id
+            LEFT JOIN "Spendings" s ON s."user" = u.email AND s.room = ur.room_id
             WHERE ur.room_id = :room_id
             GROUP BY u.id, u.email, u.name, ur.role
             ORDER BY total_spent DESC
@@ -110,7 +110,7 @@ def count_unsettled_expenses(conn: Connection, room_id: int) -> int:
     row = conn.execute(
         text("""
             SELECT COUNT(*) AS cnt
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
         """),
@@ -120,10 +120,10 @@ def count_unsettled_expenses(conn: Connection, room_id: int) -> int:
 
 
 def delete_room_cascade(conn: Connection, room_id: int) -> None:
-    conn.execute(text("DELETE FROM Balance WHERE room = :id"), {"id": room_id})
-    conn.execute(text("DELETE FROM Spendings WHERE room = :id"), {"id": room_id})
-    conn.execute(text("DELETE FROM Invite WHERE room = :id"), {"id": room_id})
+    conn.execute(text("DELETE FROM balance WHERE room = :id"), {"id": room_id})
+    conn.execute(text('DELETE FROM "Spendings" WHERE room = :id'), {"id": room_id})
+    conn.execute(text('DELETE FROM "Invite" WHERE room = :id'), {"id": room_id})
     conn.execute(text("DELETE FROM push_subscriptions WHERE room_id = :id"), {"id": room_id})
-    conn.execute(text("DELETE FROM Notification WHERE room_id = :id"), {"id": room_id})
-    conn.execute(text("DELETE FROM UserRooms WHERE room_id = :id"), {"id": room_id})
-    conn.execute(text("DELETE FROM Rooms WHERE id = :id"), {"id": room_id})
+    conn.execute(text("DELETE FROM notifications WHERE room_id = :id"), {"id": room_id})
+    conn.execute(text('DELETE FROM "UserRooms" WHERE room_id = :id'), {"id": room_id})
+    conn.execute(text('DELETE FROM "Rooms" WHERE id = :id'), {"id": room_id})

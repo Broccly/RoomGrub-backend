@@ -25,7 +25,7 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Token missing subject claim")
 
     row = conn.execute(
-        text("SELECT id, email, name, profile FROM Users WHERE id = :id"),
+        text('SELECT id, email, name, profile FROM "Users" WHERE id = :id'),
         {"id": int(user_id)},
     ).fetchone()
 

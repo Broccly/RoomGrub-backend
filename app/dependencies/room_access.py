@@ -11,7 +11,7 @@ def require_room_member(
 ) -> dict:
     row = conn.execute(
         text(
-            "SELECT id, role FROM UserRooms "
+            'SELECT id, role FROM "UserRooms" '
             "WHERE room_id = :room_id AND user_id = :user_id"
         ),
         {"room_id": room_id, "user_id": current_user["id"]},

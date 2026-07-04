@@ -45,7 +45,7 @@ def get_expenses(
     rows = conn.execute(
         text(f"""
             SELECT id, room, "user", material, money, created_at, settled
-            FROM Spendings
+            FROM "Spendings"
             WHERE {where}
             ORDER BY id DESC
             LIMIT :limit
@@ -59,7 +59,7 @@ def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
             SELECT id, room, "user", material, money, created_at, settled
-            FROM Spendings WHERE id = :expense_id
+            FROM "Spendings" WHERE id = :expense_id
         """),
         {"expense_id": expense_id},
     ).fetchone()
@@ -87,7 +87,7 @@ def update_expense(
 
     row = conn.execute(
         text(f"""
-            UPDATE Spendings SET {', '.join(fields)}
+            UPDATE "Spendings" SET {', '.join(fields)}
             WHERE id = :expense_id
             RETURNING id, room, "user", material, money, created_at, settled
         """),
@@ -98,7 +98,7 @@ def update_expense(
 
 def delete_expense(conn: Connection, expense_id: int) -> None:
     conn.execute(
-        text("DELETE FROM Spendings WHERE id = :expense_id"),
+        text('DELETE FROM "Spendings" WHERE id = :expense_id'),
         {"expense_id": expense_id},
     )
 
@@ -108,7 +108,7 @@ def insert_expense(
 ) -> dict:
     row = conn.execute(
         text("""
-            INSERT INTO Spendings (room, "user", material, money, created_at)
+            INSERT INTO "Spendings" (room, "user", material, money, created_at)
             VALUES (:room_id, :user_email, :material, :money, COALESCE(:created_at, NOW()))
             RETURNING id, room, "user", material, money, created_at, settled
         """),

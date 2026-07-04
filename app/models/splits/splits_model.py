@@ -5,7 +5,7 @@ def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
             SELECT id, "user", material, money, created_at
-            FROM Spendings
+            FROM "Spendings"
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
             ORDER BY created_at DESC

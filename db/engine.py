@@ -7,7 +7,8 @@ from db.config import (
   get_db_pool_size,
   get_db_port,
   get_db_user,
-  get_db_max_overflow
+  get_db_max_overflow,
+  validate_env,
 )
 
 def _get_db_url() -> str:
@@ -21,21 +22,25 @@ def _get_db_url() -> str:
 
 
 def get_sql_engine() -> Engine:
+  validate_env()
   return create_engine(
     _get_db_url(),
     pool_size = get_db_pool_size(),
     max_overflow = get_db_max_overflow()
   )
 
-try:
-  engine = get_sql_engine()
-except Exception as e:
-  print(f"Error getting SQL engine: {e}")
-  raise
+
+_engine: Engine | None = None
+
+def _get_engine() -> Engine:
+  global _engine
+  if _engine is None:
+    _engine = get_sql_engine()
+  return _engine
 
 
 def db_conn() -> Generator[Connection, Any, None]:
-  with engine.connect() as conn:
+  with _get_engine().connect() as conn:
     try:
       yield conn
     except Exception as e:

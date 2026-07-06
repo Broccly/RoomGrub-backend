@@ -1,5 +1,21 @@
 import os
 
+_REQUIRED_ENV_VARS = [
+  "DB_NAME",
+  "DB_HOST",
+  "DB_PORT",
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_POOL_SIZE",
+  "DB_MAX_OVERFLOW",
+  "JWT_SECRET",
+]
+
+def validate_env() -> None:
+  missing = [key for key in _REQUIRED_ENV_VARS if key not in os.environ]
+  if missing:
+    raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
 def get_db_name():
   return os.environ["DB_NAME"]
 

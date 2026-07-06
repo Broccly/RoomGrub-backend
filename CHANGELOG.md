@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Replaced f-string-interpolated `WHERE` clauses in `get_filtered_unsettled_expenses` and `get_pending_for_user_filtered` with fully static, parameterized queries
+- Fixed `syntax error at or near ":"` in `splits_model.py` filtered queries by switching `:param::type` casts to `CAST(:param AS type)`, since SQLAlchemy's `text()` treats `::` as an escaped literal colon rather than a Postgres typecast
 - Removed leftover debug `print()` statements from splits settlement service
 
 ### Removed

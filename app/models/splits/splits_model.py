@@ -143,9 +143,9 @@ def get_filtered_unsettled_expenses(
             FROM "Spendings"
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
-              AND (:date_from::timestamp IS NULL OR created_at >= :date_from)
-              AND (:date_to::timestamp IS NULL OR created_at <= :date_to)
-              AND (:member_emails::text[] IS NULL OR "user" = ANY(:member_emails))
+              AND (CAST(:date_from AS timestamp) IS NULL OR created_at >= :date_from)
+              AND (CAST(:date_to AS timestamp) IS NULL OR created_at <= :date_to)
+              AND (CAST(:member_emails AS text[]) IS NULL OR "user" = ANY(:member_emails))
         """),
         {
             "room_id": room_id,
@@ -181,8 +181,8 @@ def get_pending_for_user_filtered(
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
               AND "user" = ANY(:member_emails)
-              AND (:date_from::timestamp IS NULL OR created_at >= :date_from)
-              AND (:date_to::timestamp IS NULL OR created_at <= :date_to)
+              AND (CAST(:date_from AS timestamp) IS NULL OR created_at >= :date_from)
+              AND (CAST(:date_to AS timestamp) IS NULL OR created_at <= :date_to)
         """),
         params,
     ).scalar()
@@ -193,8 +193,8 @@ def get_pending_for_user_filtered(
             WHERE room = :room_id
               AND (settled IS NULL OR settled = FALSE)
               AND "user" = ANY(:member_emails)
-              AND (:date_from::timestamp IS NULL OR created_at >= :date_from)
-              AND (:date_to::timestamp IS NULL OR created_at <= :date_to)
+              AND (CAST(:date_from AS timestamp) IS NULL OR created_at >= :date_from)
+              AND (CAST(:date_to AS timestamp) IS NULL OR created_at <= :date_to)
               AND "user" = :email
         """),
         {**params, "email": user_email},

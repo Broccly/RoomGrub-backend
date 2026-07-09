@@ -26,7 +26,6 @@ def create_invite(
 def validate_invite(
     token: str,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
 ):
     return invites_services.validate_invite(conn, token)
 

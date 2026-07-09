@@ -22,25 +22,25 @@ def list_members(
     return members_services.list_members(conn, room_id)
 
 
-@router.get("/{room_id}/members/{member_id}", response_model=MemberDetail)
+@router.get("/{room_id}/members/{user_id}", response_model=MemberDetail)
 def get_member_detail(
     room_id: int,
-    member_id: int,
+    user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
 ):
-    return members_services.get_member_detail(conn, room_id, member_id)
+    return members_services.get_member_detail(conn, room_id, user_id)
 
 
-@router.patch("/{room_id}/members/{member_id}/role", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{room_id}/members/{user_id}/role", status_code=status.HTTP_204_NO_CONTENT)
 def update_member_role(
     room_id: int,
-    member_id: int,
+    user_id: int,
     body: RoleUpdate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ):
-    members_services.change_member_role(conn, room_id, member_id, body.role, membership["user"])
+    members_services.change_member_role(conn, room_id, user_id, body.role, membership["user"])
 
 
 @router.delete("/{room_id}/members/me", status_code=status.HTTP_204_NO_CONTENT)
@@ -52,32 +52,32 @@ def exit_room(
     members_services.exit_room(conn, room_id, membership["user"])
 
 
-@router.delete("/{room_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{room_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(
     room_id: int,
-    member_id: int,
+    user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ):
-    members_services.remove_member(conn, room_id, member_id, membership["user"])
+    members_services.remove_member(conn, room_id, user_id, membership["user"])
 
 
-@router.post("/{room_id}/members/{member_id}/settle", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{room_id}/members/{user_id}/settle", status_code=status.HTTP_204_NO_CONTENT)
 def settle_member(
     room_id: int,
-    member_id: int,
+    user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ):
-    members_services.settle_member(conn, room_id, member_id)
+    members_services.settle_member(conn, room_id, user_id)
 
 
-@router.post("/{room_id}/members/{member_id}/contribute", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{room_id}/members/{user_id}/contribute", status_code=status.HTTP_204_NO_CONTENT)
 def contribute(
     room_id: int,
-    member_id: int,
+    user_id: int,
     body: ContributeRequest,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ):
-    members_services.record_contribution(conn, room_id, member_id, body.amount)
+    members_services.record_contribution(conn, room_id, user_id, body.amount)

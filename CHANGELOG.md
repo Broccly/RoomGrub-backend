@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filtered settle-all for splits: settle by date range and/or member subset, alongside the existing settle-all-unsettled flow (`app/api/splits/*`, `app/services/splits/splits_services.py`, `app/models/splits/splits_model.py`)
 - Balance-based member pending calculation (paid vs. fair share vs. manual adjustments) replacing the raw per-user sum
 - `app/utils/jwt_utils.py` extracted for JWT creation, shared by auth services
+- Return invited by user name with invite/token GET request
 
 ### Changed
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DELETE /rooms/{room_id}` authorization moved to the `require_room_admin` dependency instead of an in-service check
 - Quoted all mixed-case table identifiers (`"Users"`, `"UserRooms"`, `"Spendings"`, `"Rooms"`, `"Invite"`) across models to fix Postgres case-folding issues
 - Removed `Rooms.members` increment/decrement side-table bookkeeping now that member counts are derived
+- Open auth for /invite/token GET request
 
 ### Fixed
 

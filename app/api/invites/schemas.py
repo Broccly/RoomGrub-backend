@@ -5,6 +5,7 @@ class InviteResponse(BaseModel):
     token: str
     room_id: int
     invited_by_email: str
+    invited_by_name: str
     days_left: int
 
 

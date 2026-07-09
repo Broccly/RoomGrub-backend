@@ -29,3 +29,11 @@ def require_room_admin(
     if membership["role"] != "Admin":
         raise HTTPException(status_code=403, detail="Admin role required")
     return membership
+
+
+def require_room_non_admin(
+    membership: dict = Depends(require_room_member),
+) -> dict:
+    if membership["role"] == "Admin":
+        raise HTTPException(status_code=403, detail="Admins cannot perform this action")
+    return membership

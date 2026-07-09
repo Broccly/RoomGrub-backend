@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import Connection
 from db.engine import db_conn
-from app.dependencies.current_user import get_current_user
-from app.dependencies.room_access import require_room_admin
+from app.dependencies.room_access import require_room_admin, require_room_member
 from app.api.expenses.schemas import (
     ExpenseCreate,
     ExpenseForMemberCreate,
@@ -26,7 +25,7 @@ def list_expenses(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
     return expenses_services.list_expenses(
         conn, room_id, cursor=cursor, limit=limit,
@@ -40,9 +39,9 @@ def add_expense(
     room_id: int,
     body: ExpenseCreate,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
-    return expenses_services.add_expense(conn, room_id, body.material, body.money, current_user, body.created_at)
+    return expenses_services.add_expense(conn, room_id, body.material, body.money, membership["user"], body.created_at)
 
 
 @router.patch("/{room_id}/expenses/{expense_id}", response_model=ExpenseResponse)

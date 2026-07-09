@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import Connection
 from db.engine import db_conn
-from app.dependencies.current_user import get_current_user
-from app.dependencies.room_access import require_room_admin
+from app.dependencies.room_access import require_room_admin, require_room_member, require_room_non_admin
 from app.api.members.schemas import (
     MemberResponse,
     MemberDetail,
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/api/v1/rooms", tags=["Members"])
 def list_members(
     room_id: int,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
     return members_services.list_members(conn, room_id)
 
@@ -28,7 +27,7 @@ def get_member_detail(
     room_id: int,
     member_id: int,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
     return members_services.get_member_detail(conn, room_id, member_id)
 
@@ -48,9 +47,9 @@ def update_member_role(
 def exit_room(
     room_id: int,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_non_admin),
 ):
-    members_services.exit_room(conn, room_id, current_user)
+    members_services.exit_room(conn, room_id, membership["user"])
 
 
 @router.delete("/{room_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)

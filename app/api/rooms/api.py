@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.current_user import get_current_user
-from app.dependencies.room_access import require_room_admin
+from app.dependencies.room_access import require_room_admin, require_room_member
 from app.api.rooms.schemas import RoomResponse, RoomSummary, DashboardResponse
 from app.services.rooms import rooms_services
 
@@ -29,7 +29,7 @@ def create_room(
 def get_room_summary(
     room_id: int,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
     return rooms_services.get_room_summary(conn, room_id)
 
@@ -38,7 +38,7 @@ def get_room_summary(
 def get_room_dashboard(
     room_id: int,
     conn: Connection = Depends(db_conn),
-    current_user: dict = Depends(get_current_user),
+    membership: dict = Depends(require_room_member),
 ):
     return rooms_services.get_room_dashboard(conn, room_id)
 

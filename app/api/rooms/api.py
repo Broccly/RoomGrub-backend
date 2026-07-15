@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/rooms", tags=["Rooms"])
 def list_rooms(
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
-):
+) -> list[RoomResponse]:
     return rooms_services.list_rooms(conn, current_user)
 
 
@@ -21,7 +21,7 @@ def list_rooms(
 def create_room(
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
-):
+) -> RoomResponse:
     return rooms_services.create_room(conn, current_user=current_user)
 
 
@@ -30,7 +30,7 @@ def get_room_summary(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> RoomSummary:
     return rooms_services.get_room_summary(conn, room_id)
 
 
@@ -39,7 +39,7 @@ def get_room_dashboard(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> DashboardResponse:
     return rooms_services.get_room_dashboard(conn, room_id)
 
 
@@ -48,5 +48,5 @@ def delete_room(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     rooms_services.delete_room(conn, room_id)

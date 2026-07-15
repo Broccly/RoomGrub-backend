@@ -8,5 +8,5 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login_endpoint(body: LoginRequest, conn: Connection = Depends(db_conn)):
+def login_endpoint(body: LoginRequest, conn: Connection = Depends(db_conn)) -> LoginResponse:
     return login(conn, body.provider, body.token)

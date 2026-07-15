@@ -18,7 +18,7 @@ def create_invite(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> InviteResponse:
     return invites_services.create_invite(conn, room_id, membership["user"])
 
 
@@ -26,7 +26,7 @@ def create_invite(
 def validate_invite(
     token: str,
     conn: Connection = Depends(db_conn),
-):
+) -> InviteResponse:
     return invites_services.validate_invite(conn, token)
 
 
@@ -35,7 +35,7 @@ def accept_invite(
     token: str,
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
-):
+) -> InviteAcceptResponse:
     return invites_services.accept_invite(conn, token, current_user)
 
 
@@ -44,5 +44,5 @@ def reject_invite(
     token: str,
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
-):
+) -> None:
     invites_services.reject_invite(conn, token)

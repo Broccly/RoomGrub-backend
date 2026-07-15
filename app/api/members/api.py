@@ -18,7 +18,7 @@ def list_members(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> list[MemberResponse]:
     return members_services.list_members(conn, room_id)
 
 
@@ -28,7 +28,7 @@ def get_member_detail(
     user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> MemberDetail:
     return members_services.get_member_detail(conn, room_id, user_id)
 
 
@@ -39,7 +39,7 @@ def update_member_role(
     body: RoleUpdate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     members_services.change_member_role(conn, room_id, user_id, body.role, membership["user"])
 
 
@@ -48,7 +48,7 @@ def exit_room(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_non_admin),
-):
+) -> None:
     members_services.exit_room(conn, room_id, membership["user"])
 
 
@@ -58,7 +58,7 @@ def remove_member(
     user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     members_services.remove_member(conn, room_id, user_id, membership["user"])
 
 
@@ -68,7 +68,7 @@ def settle_member(
     user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     members_services.settle_member(conn, room_id, user_id)
 
 
@@ -79,5 +79,5 @@ def contribute(
     body: ContributeRequest,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     members_services.record_contribution(conn, room_id, user_id, body.amount)

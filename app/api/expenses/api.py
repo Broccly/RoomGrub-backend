@@ -26,7 +26,7 @@ def list_expenses(
     date_to: str | None = Query(default=None),
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> PaginatedExpenses:
     return expenses_services.list_expenses(
         conn, room_id, cursor=cursor, limit=limit,
         settled=settled, search=search, user_email=user_email,
@@ -40,7 +40,7 @@ def add_expense(
     body: ExpenseCreate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> ExpenseResponse:
     return expenses_services.add_expense(conn, room_id, body.material, body.money, membership["user"], body.created_at)
 
 
@@ -51,7 +51,7 @@ def edit_expense(
     body: ExpenseUpdate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> ExpenseResponse:
     return expenses_services.edit_expense(
         conn, room_id, expense_id,
         body.material, body.money, body.created_at,
@@ -65,7 +65,7 @@ def delete_expense(
     expense_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> Response:
     expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -80,7 +80,7 @@ def add_expense_for_member(
     body: ExpenseForMemberCreate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> ExpenseResponse:
     return expenses_services.add_expense_for_member(
         conn, room_id, body.material, body.money, body.user_email, body.created_at
     )

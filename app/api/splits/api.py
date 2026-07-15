@@ -13,7 +13,7 @@ def get_splits(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
-):
+) -> SplitsData:
     return splits_services.get_splits_data(conn, room_id)
 
 
@@ -23,7 +23,7 @@ def settle_one(
     body: SettleRequest,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     splits_services.settle_one(conn, room_id, body.user_email, body.pending_amount)
 
 
@@ -33,7 +33,7 @@ def settle_all(
     body: SettleAllRequest,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
-):
+) -> None:
     splits_services.settle_all(
         conn,
         room_id,

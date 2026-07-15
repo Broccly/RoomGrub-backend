@@ -1,4 +1,10 @@
 from sqlalchemy import Connection, text
+from app.models.splits.schemas import (
+    UnsettledExpenseRow,
+    MemberBalanceMemberRow,
+    FilteredUnsettledExpenseRow,
+    SettleFilteredExpenseRow,
+)
 
 
 def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
@@ -12,7 +18,7 @@ def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
         """),
         {"room_id": room_id},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [UnsettledExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
@@ -27,6 +33,7 @@ def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
     ).fetchall()
     if not members:
         return []
+    members = [MemberBalanceMemberRow(**m._mapping) for m in members]
 
     paid_rows = conn.execute(
         text("""
@@ -154,7 +161,7 @@ def get_filtered_unsettled_expenses(
             "member_emails": member_emails,
         },
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [FilteredUnsettledExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_pending_for_user_filtered(
@@ -212,6 +219,7 @@ def settle_filtered_room(conn: Connection, room_id: int, expense_ids: list[int])
         text('SELECT id, "user", money FROM "Spendings" WHERE id = ANY(:ids) AND room = :room_id'),
         {"ids": expense_ids, "room_id": room_id},
     ).fetchall()
+    rows = [SettleFilteredExpenseRow(**r._mapping) for r in rows]
 
     for r in rows:
         conn.execute(

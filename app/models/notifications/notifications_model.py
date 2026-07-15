@@ -1,5 +1,6 @@
 import json
 from sqlalchemy import Connection, text
+from app.models.notifications.schemas import NotificationRow
 
 
 def insert_notification(
@@ -26,7 +27,7 @@ def insert_notification(
             "data": json.dumps(data) if data else None,
         },
     ).fetchone()
-    return dict(row._mapping)
+    return NotificationRow(**row._mapping).model_dump()
 
 
 def get_notifications(conn: Connection, room_id: int, limit: int = 50) -> list[dict]:
@@ -40,7 +41,7 @@ def get_notifications(conn: Connection, room_id: int, limit: int = 50) -> list[d
         """),
         {"room_id": room_id, "limit": limit},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [NotificationRow(**r._mapping).model_dump() for r in rows]
 
 
 def upsert_push_subscription(

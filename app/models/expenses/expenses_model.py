@@ -1,4 +1,5 @@
 from sqlalchemy import Connection, text
+from app.models.expenses.schemas import ExpenseRow
 
 
 def get_expenses(
@@ -52,7 +53,7 @@ def get_expenses(
         """),
         params,
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [ExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
@@ -63,7 +64,7 @@ def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
         """),
         {"expense_id": expense_id},
     ).fetchone()
-    return dict(row._mapping) if row else None
+    return ExpenseRow(**row._mapping).model_dump() if row else None
 
 
 def update_expense(
@@ -93,7 +94,7 @@ def update_expense(
         """),
         params,
     ).fetchone()
-    return dict(row._mapping)
+    return ExpenseRow(**row._mapping).model_dump()
 
 
 def delete_expense(conn: Connection, expense_id: int) -> None:
@@ -114,4 +115,4 @@ def insert_expense(
         """),
         {"room_id": room_id, "user_email": user_email, "material": material, "money": money, "created_at": created_at},
     ).fetchone()
-    return dict(row._mapping)
+    return ExpenseRow(**row._mapping).model_dump()

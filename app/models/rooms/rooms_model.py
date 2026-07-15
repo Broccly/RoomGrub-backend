@@ -1,11 +1,17 @@
 from sqlalchemy import Connection, text
+from app.models.rooms.schemas import (
+    InsertRoomResponse,
+    ListRoomsResponse,
+    RecentExpenseRow,
+    MemberStatRow,
+)
 
 
 def insert_room(conn: Connection) -> dict:
     row = conn.execute(
         text('INSERT INTO "Rooms" DEFAULT VALUES RETURNING id'),
     ).fetchone()
-    return dict(row._mapping)
+    return InsertRoomResponse(**row._mapping).model_dump()
 
 
 def insert_user_room(conn: Connection, user_id: int, room_id: int, role: str = "Admin") -> None:
@@ -32,7 +38,7 @@ def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
         """),
         {"user_id": user_id},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [ListRoomsResponse(**r._mapping).model_dump() for r in rows]
 
 
 def get_room_by_id(conn: Connection, room_id: int) -> dict | None:
@@ -46,7 +52,7 @@ def get_room_by_id(conn: Connection, room_id: int) -> dict | None:
         """),
         {"room_id": room_id},
     ).fetchone()
-    return dict(row._mapping) if row else None
+    return ListRoomsResponse(**row._mapping).model_dump() if row else None
 
 
 def get_total_spent(conn: Connection, room_id: int) -> float:
@@ -85,7 +91,7 @@ def get_recent_expenses(conn: Connection, room_id: int, limit: int = 5) -> list[
         """),
         {"room_id": room_id, "limit": limit},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [RecentExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
@@ -107,7 +113,7 @@ def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
         """),
         {"room_id": room_id},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [MemberStatRow(**r._mapping).model_dump() for r in rows]
 
 
 def count_unsettled_expenses(conn: Connection, room_id: int) -> int:

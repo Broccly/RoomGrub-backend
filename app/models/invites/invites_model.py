@@ -1,4 +1,5 @@
 from sqlalchemy import Connection, text
+from app.models.invites.schemas import InviteByTokenRow
 
 
 def insert_invite(conn: Connection, room_id: int, invited_by_id: int) -> str:
@@ -29,7 +30,7 @@ def get_invite_by_token(conn: Connection, token: str) -> dict | None:
         """),
         {"token": token},
     ).fetchone()
-    return dict(row._mapping) if row else None
+    return InviteByTokenRow(**row._mapping).model_dump() if row else None
 
 
 def update_invite_status(conn: Connection, token: str, status: str) -> None:

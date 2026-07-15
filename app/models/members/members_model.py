@@ -1,4 +1,9 @@
 from sqlalchemy import Connection, text
+from app.models.members.schemas import (
+    MemberRow,
+    MemberPendingExpenseRow,
+    MyMembershipRow,
+)
 
 
 def get_members(conn: Connection, room_id: int) -> list[dict]:
@@ -12,7 +17,7 @@ def get_members(conn: Connection, room_id: int) -> list[dict]:
         """),
         {"room_id": room_id},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [MemberRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_member_by_user_id(conn: Connection, room_id: int, user_id: int) -> dict | None:
@@ -25,7 +30,7 @@ def get_member_by_user_id(conn: Connection, room_id: int, user_id: int) -> dict 
         """),
         {"room_id": room_id, "user_id": user_id},
     ).fetchone()
-    return dict(row._mapping) if row else None
+    return MemberRow(**row._mapping).model_dump() if row else None
 
 
 def get_member_pending_expenses(conn: Connection, room_id: int, user_email: str) -> list[dict]:
@@ -39,7 +44,7 @@ def get_member_pending_expenses(conn: Connection, room_id: int, user_email: str)
         """),
         {"room_id": room_id, "email": user_email},
     ).fetchall()
-    return [dict(r._mapping) for r in rows]
+    return [MemberPendingExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_member_pending(conn: Connection, room_id: int, user_email: str) -> float:
@@ -79,7 +84,7 @@ def get_my_membership(conn: Connection, room_id: int, user_id: int) -> dict | No
         """),
         {"room_id": room_id, "user_id": user_id},
     ).fetchone()
-    return dict(row._mapping) if row else None
+    return MyMembershipRow(**row._mapping).model_dump() if row else None
 
 
 def insert_balance_debit(conn: Connection, room_id: int, user_email: str, amount: float) -> None:

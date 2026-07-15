@@ -1,4 +1,5 @@
 from sqlalchemy import Connection, text
+from app.models.auth.schemas import UpsertUserRow
 
 
 def upsert_user(conn: Connection, uid: str, email: str, name: str | None, profile: str | None) -> dict:
@@ -14,4 +15,4 @@ def upsert_user(conn: Connection, uid: str, email: str, name: str | None, profil
         """),
         {"uid": uid, "email": email, "name": name, "profile": profile},
     ).fetchone()
-    return dict(row._mapping)
+    return UpsertUserRow(**row._mapping).model_dump()

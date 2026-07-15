@@ -13,25 +13,66 @@ Standalone **Python FastAPI** backend for RoomGrub — a shared-expense tracker 
 ## Tech stack
 
 - **FastAPI** — REST API framework
-- **PostgreSQL** (Supabase) — existing database, no migration needed
+- **PostgreSQL** (Supabase-hosted in dev/prod; local Docker Postgres for local dev/test) — schema managed via [dbmate](https://github.com/amacneil/dbmate) migrations
 - **Raw SQL** — all DB queries are parameterized SQL, no ORM
-- **Supabase Auth** — JWT verification for every request
+- **Auth** — JWT verification for every request
 - **Pydantic v2** — request/response validation
 
-## Quick start
+## Setup
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+Everything below uses Docker for the database — no Supabase credentials needed to get started.
 
-# Copy env and fill in values
-cp .env.example .env
+**Prerequisites**: Python 3.11+, Docker, [dbmate](https://github.com/amacneil/dbmate#installation).
 
-# Run dev server
-uvicorn main:app --reload --port 8000
-```
+1. **Clone the repo and enter it**
 
-API docs available at `http://localhost:8000/docs` once running.
+   ```bash
+   git clone <repo-url> RoomGrub-backend
+   cd RoomGrub-backend
+   ```
+
+2. **Create a virtualenv and install dependencies**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate      # .venv\Scripts\activate on Windows
+   pip install -r requirements.txt
+   ```
+
+3. **Copy the env file** — works out of the box, no values to look up
+
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Start both local Postgres containers** (dev DB + test DB)
+
+   ```bash
+   docker compose up -d
+   ```
+
+5. **Apply migrations to both**
+
+   ```bash
+   ./scripts/migrate_dev_db.sh
+   ./scripts/migrate_test_db.sh
+   ```
+
+6. **Run the dev server**
+
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+
+   API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`.
+
+7. **Run the tests**
+
+   ```bash
+   pytest -v
+   ```
+
+Making a schema change from here on? See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ## Documentation
 
@@ -42,7 +83,8 @@ API docs available at `http://localhost:8000/docs` once running.
 | [docs/AUTH.md](docs/AUTH.md) | JWT verification and auth flow |
 | [docs/PLAN.md](docs/PLAN.md) | Phased implementation plan |
 | [docs/TODOS.md](docs/TODOS.md) | Implementation checklist |
-| [docs/SETUP.md](docs/SETUP.md) | Local dev setup guide |
+| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Writing and applying dbmate migrations |
+| [tests/README.md](tests/README.md) | Test suite setup, isolation, fixtures |
 
 ## Project structure
 

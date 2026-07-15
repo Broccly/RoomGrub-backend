@@ -1,0 +1,28 @@
+services:
+  dev-db:
+    image: postgres:17
+    container_name: roomgrub-dev-db
+    environment:
+      POSTGRES_DB: roomgrub
+      POSTGRES_USER: roomgrub_user
+      POSTGRES_PASSWORD: roomgrub_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - roomgrub_dev_db:/var/lib/postgresql/data
+
+  test-db:
+    image: postgres:17
+    container_name: roomgrub-test-db
+    environment:
+      POSTGRES_DB: roomgrub_test
+      POSTGRES_USER: roomgrub_test
+      POSTGRES_PASSWORD: roomgrub_test
+    ports:
+      - "55432:5432"
+    volumes:
+      - roomgrub_test_db:/var/lib/postgresql/data
+
+volumes:
+  roomgrub_dev_db:
+  roomgrub_test_db:

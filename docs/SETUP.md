@@ -1,5 +1,10 @@
 # RoomGrub Backend — Local Setup
 
+> **This document is stale** — it predates the actual project structure (raw
+> SQL, no ORM, no Alembic) and the local Docker Postgres + dbmate setup. See
+> the "Setup" section in [README.md](../README.md) for the current, accurate
+> steps.
+
 ## Prerequisites
 
 - Python 3.11+

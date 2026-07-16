@@ -1,6 +1,8 @@
+import redis
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import Connection
 from db.engine import db_conn
+from db.redis_client import redis_conn
 from app.dependencies.room_access import require_room_admin, require_room_member, require_room_non_admin
 from app.api.members.schemas import (
     MemberResponse,
@@ -39,8 +41,9 @@ def update_member_role(
     body: RoleUpdate,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
+    redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    members_services.change_member_role(conn, room_id, user_id, body.role, membership["user"])
+    members_services.change_member_role(conn, room_id, user_id, body.role, membership["user"], redis_client)
 
 
 @router.delete("/{room_id}/members/me", status_code=status.HTTP_204_NO_CONTENT)
@@ -48,8 +51,9 @@ def exit_room(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_non_admin),
+    redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    members_services.exit_room(conn, room_id, membership["user"])
+    members_services.exit_room(conn, room_id, membership["user"], redis_client)
 
 
 @router.delete("/{room_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -58,8 +62,9 @@ def remove_member(
     user_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
+    redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    members_services.remove_member(conn, room_id, user_id, membership["user"])
+    members_services.remove_member(conn, room_id, user_id, membership["user"], redis_client)
 
 
 @router.post("/{room_id}/members/{user_id}/settle", status_code=status.HTTP_204_NO_CONTENT)

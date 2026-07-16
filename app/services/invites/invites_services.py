@@ -1,3 +1,4 @@
+import redis
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException
 from sqlalchemy import Connection
@@ -8,6 +9,7 @@ from app.models.invites.invites_model import (
     check_membership,
     insert_member,
 )
+from app.cache.auth_cache import invalidate_cached_room_access
 
 INVITE_EXPIRY_DAYS = 7
 
@@ -52,7 +54,7 @@ def validate_invite(conn: Connection, token: str) -> dict:
     }
 
 
-def accept_invite(conn: Connection, token: str, current_user: dict) -> dict:
+def accept_invite(conn: Connection, token: str, current_user: dict, redis_client: redis.Redis) -> dict:
     invite = validate_invite(conn, token)
     room_id = invite["room_id"]
 
@@ -61,6 +63,7 @@ def accept_invite(conn: Connection, token: str, current_user: dict) -> dict:
 
     insert_member(conn, current_user["id"], room_id)
     update_invite_status(conn, token, "accepted")
+    invalidate_cached_room_access(redis_client, current_user["id"], room_id)
     return {"room_id": room_id, "message": "Joined room successfully"}
 
 

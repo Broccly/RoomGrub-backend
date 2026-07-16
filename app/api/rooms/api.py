@@ -1,6 +1,8 @@
+import redis
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import Connection
 from db.engine import db_conn
+from db.redis_client import redis_conn
 from app.dependencies.current_user import get_current_user
 from app.dependencies.room_access import require_room_admin, require_room_member
 from app.api.rooms.schemas import RoomResponse, RoomSummary, DashboardResponse
@@ -48,5 +50,6 @@ def delete_room(
     room_id: int,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
+    redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    rooms_services.delete_room(conn, room_id)
+    rooms_services.delete_room(conn, room_id, redis_client)

@@ -9,6 +9,7 @@ _REQUIRED_ENV_VARS = [
   "DB_POOL_SIZE",
   "DB_MAX_OVERFLOW",
   "JWT_SECRET",
+  "REDIS_URL",
 ]
 
 def validate_env() -> None:
@@ -42,3 +43,9 @@ def get_jwt_secret():
 
 def get_jwt_expiry_hours() -> int:
   return int(os.environ.get("JWT_EXPIRY_HOURS", "24"))
+
+def get_redis_url():
+  return os.environ["REDIS_URL"]
+
+def get_cache_ttl_seconds() -> int:
+  return int(os.environ.get("CACHE_TTL_SECONDS", "604800"))

@@ -10,7 +10,26 @@ from app.models.auth.auth_model import upsert_user
 from app.models.rooms.rooms_model import insert_room, insert_user_room
 from app.models.expenses.expenses_model import insert_expense
 from db.engine import db_conn
+from db.redis_client import redis_conn
 from main import app
+
+
+class FakeRedis:
+    """In-memory stand-in for redis.Redis, supporting only the get/setex/delete
+    calls used by the auth cache — keeps e2e tests from needing a live Redis."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, str] = {}
+
+    def get(self, key: str) -> str | None:
+        return self._store.get(key)
+
+    def setex(self, key: str, ttl: int, value: str) -> None:
+        self._store[key] = value
+
+    def delete(self, *keys: str) -> None:
+        for key in keys:
+            self._store.pop(key, None)
 
 
 def _get_test_db_url() -> str:
@@ -53,10 +72,15 @@ def test_client(conn) -> Generator[TestClient, None, None]:
     def _override_db_conn():
         yield conn
 
+    def _override_redis_conn():
+        yield FakeRedis()
+
     app.dependency_overrides[db_conn] = _override_db_conn
+    app.dependency_overrides[redis_conn] = _override_redis_conn
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.pop(db_conn, None)
+    app.dependency_overrides.pop(redis_conn, None)
 
 
 def auth_headers(user: dict) -> dict[str, str]:

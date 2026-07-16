@@ -1,3 +1,4 @@
+import redis
 from fastapi import HTTPException
 from sqlalchemy import Connection
 from app.models.rooms.rooms_model import (
@@ -12,6 +13,8 @@ from app.models.rooms.rooms_model import (
     count_unsettled_expenses,
     delete_room_cascade,
 )
+from app.models.members.members_model import get_members
+from app.cache.auth_cache import invalidate_all_room_access_for_room
 
 
 def create_room(conn: Connection, current_user: dict) -> dict:
@@ -42,7 +45,7 @@ def get_room_dashboard(conn: Connection, room_id: int) -> dict:
     return {"room": room, "members": members}
 
 
-def delete_room(conn: Connection, room_id: int) -> None:
+def delete_room(conn: Connection, room_id: int, redis_client: redis.Redis) -> None:
     room = get_room_by_id(conn, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -52,4 +55,6 @@ def delete_room(conn: Connection, room_id: int) -> None:
             status_code=400,
             detail=f"Cannot delete room: {unsettled} unsettled expense(s) remain",
         )
+    member_user_ids = [member["user_id"] for member in get_members(conn, room_id)]
     delete_room_cascade(conn, room_id)
+    invalidate_all_room_access_for_room(redis_client, room_id, member_user_ids)

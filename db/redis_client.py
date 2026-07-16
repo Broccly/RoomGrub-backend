@@ -4,7 +4,13 @@ from db.config import get_redis_url
 
 
 def _build_redis_client() -> redis.Redis:
-  return redis.from_url(get_redis_url(), decode_responses=True)
+  return redis.from_url(
+    get_redis_url(),
+    decode_responses=True,
+    socket_connect_timeout=1,
+    socket_timeout=1,
+    retry_on_timeout=False,
+  )
 
 
 _client: redis.Redis | None = None

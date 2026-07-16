@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+### Added
+
+- Redis (Upstash) cache-aside layer for auth (`get_current_user`) and room-membership checks (`require_room_member`), with active invalidation on room create/delete, invite accept, role change, and member remove/exit (`app/cache/auth_cache.py`, `db/redis_client.py`, dependency/service wiring)
+- Fail-open Redis handling: cache read/write/invalidate errors are caught and logged as warnings, falling back to Postgres instead of failing the request
+- In-process circuit breaker (`db/redis_circuit.py`) that skips Redis entirely for 30s after a failure, so a Redis outage doesn't add per-request timeout latency
+
 ## [1.0.0] - 2026-07-04
 ### Added
 

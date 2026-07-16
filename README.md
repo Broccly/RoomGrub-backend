@@ -16,6 +16,7 @@ Standalone **Python FastAPI** backend for RoomGrub — a shared-expense tracker 
 - **PostgreSQL** (Supabase-hosted in dev/prod; local Docker Postgres for local dev/test) — schema managed via [dbmate](https://github.com/amacneil/dbmate) migrations
 - **Raw SQL** — all DB queries are parameterized SQL, no ORM
 - **Auth** — JWT verification for every request
+- **Redis (Upstash)** — cache-aside layer for auth/room-access checks; fails open to Postgres if unreachable
 - **Pydantic v2** — request/response validation
 
 ## Setup
@@ -44,6 +45,8 @@ Everything below uses Docker for the database — no Supabase credentials needed
    ```bash
    cp .env.example .env
    ```
+
+   `REDIS_URL` is a placeholder by default — fill in a real Upstash `rediss://` connection string to enable caching. The app runs fine without it reachable (Redis errors fail open to Postgres), it just won't cache anything until it's set correctly.
 
 4. **Start both local Postgres containers** (dev DB + test DB)
 
@@ -95,9 +98,13 @@ app/
   models/<domain>/    # Raw SQL query functions
   services/<domain>/  # Business logic
   dependencies/       # FastAPI DI: auth, room access guards
+  cache/
+    auth_cache.py      # Cache-aside helpers for auth/room-access (fail-open, circuit breaker)
 db/
   config.py           # Env var getters
   engine.py           # SQLAlchemy connection engine + db_conn()
+  redis_client.py     # Redis client singleton + redis_conn()
+  redis_circuit.py     # In-process circuit breaker for Redis outages
 docs/                 # All documentation
 tests/                # pytest test suite
 ```

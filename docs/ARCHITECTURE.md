@@ -57,6 +57,7 @@ This is a standalone **Python FastAPI** backend extracted from the RoomGrub Next
 | DB Connection | SQLAlchemy engine (sync)            | Connection pooling only — no ORM used        |
 | DB            | Supabase PostgreSQL (existing)      | No migration needed for schema               |
 | Auth          | Supabase JWT verification           | Reuse existing Supabase Auth                 |
+| Cache         | Redis (Upstash)                     | Cache-aside for auth/room-access reads, fail-open with circuit breaker |
 | Push Notifs   | `pywebpush`                         | Web Push Protocol, replaces `web-push` npm   |
 | Validation    | Pydantic v2                         | Built into FastAPI, replaces manual checks   |
 | Config        | `.env` + per-var getter functions   | Simple, explicit, 12-factor                  |
@@ -94,13 +95,18 @@ RoomGrub-backend/
 │   │   └── rooms/
 │   │       └── rooms_services.py
 │   │
-│   └── dependencies/             # FastAPI dependency injection
-│       ├── current_user.py       # get_current_user — JWT verify via Supabase
-│       └── room_access.py        # require_room_member, require_room_admin
+│   ├── dependencies/             # FastAPI dependency injection
+│   │   ├── current_user.py       # get_current_user — JWT verify via Supabase
+│   │   └── room_access.py        # require_room_member, require_room_admin
+│   │
+│   └── cache/
+│       └── auth_cache.py         # Cache-aside helpers for auth/room-access (fail-open, circuit breaker)
 │
 ├── db/
 │   ├── config.py                 # Per-variable env getter functions
 │   ├── engine.py                 # SQLAlchemy sync engine + db_conn() session generator
+│   ├── redis_client.py           # Redis client singleton + redis_conn() dependency
+│   ├── redis_circuit.py          # In-process circuit breaker for Redis outages
 │   └── migrations/               # Alembic migrations (if schema changes needed)
 │
 ├── docs/                         # Documentation
@@ -189,6 +195,22 @@ See `AUTH.md` for full details.
 
 ---
 
+## Caching Layer
+
+Redis (hosted on Upstash) caches two hot, low-cardinality lookups using a cache-aside pattern:
+
+- **Auth**: `get_current_user` (`app/dependencies/current_user.py`) checks `auth:user:{user_id}` before querying `Users`; on a miss it queries Postgres and populates the cache.
+- **Room access**: `require_room_member` (`app/dependencies/room_access.py`) checks `access:{user_id}:{room_id}` before querying `UserRooms`; on a miss it queries Postgres and populates the cache.
+
+Both keys carry a **7-day TTL** as a safety-net backstop, not the primary consistency mechanism — consistency comes from **active invalidation on every write** that changes membership or role: room creation/deletion, invite acceptance, role change, member removal, and self-exit (see the corresponding service functions in `app/services/rooms/`, `app/services/invites/`, `app/services/members/`, which call the `invalidate_*` helpers in `app/cache/auth_cache.py` immediately after the underlying write commits).
+
+**Redis is never a dependency — only an optimization.** All cache operations are wrapped so a Redis outage degrades to "always miss" instead of failing requests:
+- Every `get_cached_*`/`set_cached_*`/`invalidate_*` call catches `redis.RedisError` (and `ValueError` for corrupt JSON), logs a warning, and falls through to Postgres.
+- A small in-process circuit breaker (`db/redis_circuit.py`) trips for 30 seconds after any Redis failure, so subsequent requests skip Redis entirely (no repeated connection timeouts) until the cooldown expires and one probe request retries it.
+- Connection/socket timeouts are set to 1s so even that probe request fails fast if Redis is still down.
+
+---
+
 ## CORS
 
 Allow origins:
@@ -206,3 +228,4 @@ Allow origins:
 - **Sync SQLAlchemy** — using synchronous SQLAlchemy sessions. No async DB layer.
 - **Business logic in services** — routers are thin; all rules (role checks, pending calculation, settle logic) live in service functions.
 - **Push notifications via pywebpush** — same VAPID keys, same protocol, just Python implementation.
+- **Redis is a pure optimization, never a dependency** — cache failures are caught and logged; requests always fall back to Postgres, which remains the source of truth.

@@ -23,6 +23,9 @@ class ExpenseResponse(BaseModel):
     money: float
     created_at: datetime
     settled: bool | None
+    user_name: str | None
+    user_profile: str | None
+    settled_at: datetime | None
 
 
 class ExpenseUpdate(BaseModel):

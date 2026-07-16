@@ -6,6 +6,7 @@ class InviteResponse(BaseModel):
     room_id: int
     invited_by_email: str
     invited_by_name: str
+    invited_by_profile: str | None
     days_left: int
 
 

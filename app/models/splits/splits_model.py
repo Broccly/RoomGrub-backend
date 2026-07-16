@@ -24,7 +24,7 @@ def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
 def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
     members = conn.execute(
         text("""
-            SELECT u.email AS user_email, u.name
+            SELECT u.email AS user_email, u.name, u.profile
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id
@@ -62,6 +62,7 @@ def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
         {
             "user_email": m.user_email,
             "name": m.name,
+            "profile": m.profile,
             "pending_amount": round(
                 paid_by_user.get(m.user_email, 0.0)
                 - fair_share

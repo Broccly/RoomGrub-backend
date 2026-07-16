@@ -7,6 +7,7 @@ class MemberRow(BaseModel):
     user_id: int
     email: str
     name: str | None
+    profile: str | None
     role: str
     joined_at: datetime
 

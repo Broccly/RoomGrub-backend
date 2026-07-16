@@ -6,13 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased] - 2026-07-04
+## [1.0.0] - 2026-07-04
 ### Added
 
 - Filtered settle-all for splits: settle by date range and/or member subset, alongside the existing settle-all-unsettled flow (`app/api/splits/*`, `app/services/splits/splits_services.py`, `app/models/splits/splits_model.py`)
 - Balance-based member pending calculation (paid vs. fair share vs. manual adjustments) replacing the raw per-user sum
 - `app/utils/jwt_utils.py` extracted for JWT creation, shared by auth services
 - Return invited by user name with invite/token GET request
+- Added user profile picture, name, email to API endpoints
+- Added expense settled at date with expense API endpoints
+- Local dev and test database set up with Docker
+
 
 ### Changed
 

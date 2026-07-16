@@ -5,6 +5,7 @@ from datetime import datetime
 class MemberBalance(BaseModel):
     user_email: str
     name: str | None
+    profile: str | None
     pending_amount: float
 
 

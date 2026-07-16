@@ -9,7 +9,7 @@ from app.models.members.schemas import (
 def get_members(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
-            SELECT ur.id, u.id AS user_id, u.email, u.name, ur.role, ur.joined_at
+            SELECT ur.id, u.id AS user_id, u.email, u.name, u.profile, ur.role, ur.joined_at
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id
@@ -23,7 +23,7 @@ def get_members(conn: Connection, room_id: int) -> list[dict]:
 def get_member_by_user_id(conn: Connection, room_id: int, user_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT ur.id, u.id AS user_id, u.email, u.name, ur.role, ur.joined_at
+            SELECT ur.id, u.id AS user_id, u.email, u.name, u.profile, ur.role, ur.joined_at
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
             WHERE ur.room_id = :room_id AND ur.user_id = :user_id

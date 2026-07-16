@@ -19,6 +19,7 @@ def create_invite(conn: Connection, room_id: int, current_user: dict) -> dict:
         "room_id": room_id,
         "invited_by_email": current_user["email"],
         "invited_by_name": current_user.get("name") or current_user["email"],
+        "invited_by_profile": current_user.get("profile"),
         "days_left": INVITE_EXPIRY_DAYS,
     }
 
@@ -46,6 +47,7 @@ def validate_invite(conn: Connection, token: str) -> dict:
         "room_id": invite["room_id"],
         "invited_by_email": invite["invited_by_email"],
         "invited_by_name": invite["invited_by_name"] or invite["invited_by_email"],
+        "invited_by_profile": invite["invited_by_profile"],
         "days_left": days_left,
     }
 

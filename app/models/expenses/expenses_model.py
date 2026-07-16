@@ -13,42 +13,45 @@ def get_expenses(
     date_from: str | None = None,
     date_to: str | None = None,
 ) -> list[dict]:
-    conditions = ["room = :room_id"]
+    conditions = ["s.room = :room_id"]
     params: dict = {"room_id": room_id, "limit": limit}
 
     if cursor is not None:
-        conditions.append("id < :cursor")
+        conditions.append("s.id < :cursor")
         params["cursor"] = cursor
 
     if settled is not None:
         if settled:
-            conditions.append("settled = TRUE")
+            conditions.append("s.settled = TRUE")
         else:
-            conditions.append("(settled IS NULL OR settled = FALSE)")
+            conditions.append("(s.settled IS NULL OR s.settled = FALSE)")
 
     if search:
-        conditions.append("material ILIKE :search")
+        conditions.append("s.material ILIKE :search")
         params["search"] = f"%{search}%"
 
     if user_email:
-        conditions.append('"user" = :user_email')
+        conditions.append('s."user" = :user_email')
         params["user_email"] = user_email
 
     if date_from:
-        conditions.append("created_at >= :date_from")
+        conditions.append("s.created_at >= :date_from")
         params["date_from"] = date_from
 
     if date_to:
-        conditions.append("created_at <= :date_to")
+        conditions.append("s.created_at <= :date_to")
         params["date_to"] = date_to
 
     where = " AND ".join(conditions)
     rows = conn.execute(
         text(f"""
-            SELECT id, room, "user", material, money, created_at, settled
-            FROM "Spendings"
+            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+                   u.name AS user_name, u.profile AS user_profile, b.created_at AS settled_at
+            FROM "Spendings" s
+            LEFT JOIN "Users" u ON u.email = s."user"
+            LEFT JOIN balance b ON b.spending_id = s.id
             WHERE {where}
-            ORDER BY id DESC
+            ORDER BY s.id DESC
             LIMIT :limit
         """),
         params,
@@ -59,8 +62,12 @@ def get_expenses(
 def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT id, room, "user", material, money, created_at, settled
-            FROM "Spendings" WHERE id = :expense_id
+            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+                   u.name AS user_name, u.profile AS user_profile, b.created_at AS settled_at
+            FROM "Spendings" s
+            LEFT JOIN "Users" u ON u.email = s."user"
+            LEFT JOIN balance b ON b.spending_id = s.id
+            WHERE s.id = :expense_id
         """),
         {"expense_id": expense_id},
     ).fetchone()
@@ -86,15 +93,14 @@ def update_expense(
         fields.append("created_at = :created_at")
         params["created_at"] = created_at
 
-    row = conn.execute(
+    conn.execute(
         text(f"""
             UPDATE "Spendings" SET {', '.join(fields)}
             WHERE id = :expense_id
-            RETURNING id, room, "user", material, money, created_at, settled
         """),
         params,
-    ).fetchone()
-    return ExpenseRow(**row._mapping).model_dump()
+    )
+    return get_expense_by_id(conn, expense_id)
 
 
 def delete_expense(conn: Connection, expense_id: int) -> None:
@@ -111,8 +117,8 @@ def insert_expense(
         text("""
             INSERT INTO "Spendings" (room, "user", material, money, created_at)
             VALUES (:room_id, :user_email, :material, :money, COALESCE(:created_at, NOW()))
-            RETURNING id, room, "user", material, money, created_at, settled
+            RETURNING id
         """),
         {"room_id": room_id, "user_email": user_email, "material": material, "money": money, "created_at": created_at},
     ).fetchone()
-    return ExpenseRow(**row._mapping).model_dump()
+    return get_expense_by_id(conn, row.id)

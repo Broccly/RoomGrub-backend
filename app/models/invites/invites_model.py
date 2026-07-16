@@ -23,7 +23,8 @@ def get_invite_by_token(conn: Connection, token: str) -> dict | None:
                 i.status,
                 i.created_at,
                 u.email AS invited_by_email,
-                u.name AS invited_by_name
+                u.name AS invited_by_name,
+                u.profile AS invited_by_profile
             FROM "Invite" i
             JOIN "Users" u ON u.id = i.invited_by
             WHERE i.token::text = :token

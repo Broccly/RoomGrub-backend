@@ -13,6 +13,7 @@ class UnsettledExpenseRow(BaseModel):
 class MemberBalanceMemberRow(BaseModel):
     user_email: str
     name: str | None
+    profile: str | None
 
 
 class FilteredUnsettledExpenseRow(BaseModel):

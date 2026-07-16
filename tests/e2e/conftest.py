@@ -1,30 +1,98 @@
+import os
 from typing import Generator
 
 import pytest
-import httpx
+from sqlalchemy import Connection, create_engine
 from fastapi.testclient import TestClient
 
 from app.utils.jwt_utils import create_jwt
+from app.models.auth.auth_model import upsert_user
+from app.models.rooms.rooms_model import insert_room, insert_user_room
+from app.models.expenses.expenses_model import insert_expense
+from db.engine import db_conn
 from main import app
 
-BASE_URL = "http://localhost:8000"
 
-E2E_TEST_USER = dict(
-  id = 23,
-  email = "developersankar14@gmail.com",
-  name = "E2E Test User",
-  picture = None
-)
+def _get_test_db_url() -> str:
+    return (
+        f"postgresql://{os.environ['TEST_DB_USER']}:{os.environ['TEST_DB_PASSWORD']}"
+        f"@{os.environ['TEST_DB_HOST']}:{os.environ['TEST_DB_PORT']}/{os.environ['TEST_DB_NAME']}"
+    )
 
-def _auth_headers() -> dict[str, str]:
-  token = create_jwt(E2E_TEST_USER)
-  return {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture(scope="session")
-def test_client() -> TestClient:
-  return TestClient(app)
+def db_engine():
+    required = ["TEST_DB_NAME", "TEST_DB_HOST", "TEST_DB_PORT", "TEST_DB_USER", "TEST_DB_PASSWORD"]
+    missing = [k for k in required if k not in os.environ]
+    if missing:
+        raise RuntimeError(
+            f"Missing test DB env vars: {', '.join(missing)}. "
+            "Run `docker compose -f docker-compose.test.yml up -d` and "
+            "`scripts/sync_test_schema.sh`, then set TEST_DB_* in .env."
+        )
+    engine = create_engine(_get_test_db_url())
+    yield engine
+    engine.dispose()
 
-@pytest.fixture(scope="session")
-def authed_client() -> Generator[httpx.Client, None, None]:
-  with httpx.Client(base_url = BASE_URL, headers = _auth_headers()) as client:
-    yield client
+
+@pytest.fixture
+def conn(db_engine) -> Generator[Connection, None, None]:
+    """A connection wrapped in a transaction that is always rolled back —
+    every test gets an isolated view of the schema with no manual cleanup."""
+    connection = db_engine.connect()
+    transaction = connection.begin()
+    try:
+        yield connection
+    finally:
+        transaction.rollback()
+        connection.close()
+
+
+@pytest.fixture
+def test_client(conn) -> Generator[TestClient, None, None]:
+    def _override_db_conn():
+        yield conn
+
+    app.dependency_overrides[db_conn] = _override_db_conn
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.pop(db_conn, None)
+
+
+def auth_headers(user: dict) -> dict[str, str]:
+    token = create_jwt(user)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def make_user(conn):
+    def _make_user(email: str, name: str | None = "Test User", profile: str | None = None) -> dict:
+        return upsert_user(conn, uid=f"uid-{email}", email=email, name=name, profile=profile)
+
+    return _make_user
+
+
+@pytest.fixture
+def make_room(conn):
+    def _make_room(admin_user: dict) -> dict:
+        room = insert_room(conn)
+        insert_user_room(conn, admin_user["id"], room["id"], role="Admin")
+        return room
+
+    return _make_room
+
+
+@pytest.fixture
+def add_member(conn):
+    def _add_member(room_id: int, user: dict, role: str = "Member") -> None:
+        insert_user_room(conn, user["id"], room_id, role=role)
+
+    return _add_member
+
+
+@pytest.fixture
+def make_expense(conn):
+    def _make_expense(room_id: int, user_email: str, money: float = 10.0, material: str = "test item") -> dict:
+        return insert_expense(conn, room_id, user_email, material, money)
+
+    return _make_expense

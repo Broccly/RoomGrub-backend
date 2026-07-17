@@ -1,0 +1,522 @@
+<title>RoomGrub — Domain Overview</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --ink: #232823;
+    --muted: #5f6b62;
+    --accent: #2f6f5e;
+    --accent-soft: #e3ede9;
+    --warn: #a85a2e;
+    --warn-soft: #f3e6dd;
+    --border: #dcdad3;
+    --rule: #cfcdc4;
+    font-size: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181a;
+      --surface: #1c2023;
+      --ink: #e6e8e4;
+      --muted: #98a39a;
+      --accent: #5fb89e;
+      --accent-soft: #1e2d29;
+      --warn: #d98a5f;
+      --warn-soft: #2e2420;
+      --border: #33383a;
+      --rule: #2a2f31;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181a; --surface: #1c2023; --ink: #e6e8e4; --muted: #98a39a;
+    --accent: #5fb89e; --accent-soft: #1e2d29; --warn: #d98a5f; --warn-soft: #2e2420;
+    --border: #33383a; --rule: #2a2f31;
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f5f2; --surface: #ffffff; --ink: #232823; --muted: #5f6b62;
+    --accent: #2f6f5e; --accent-soft: #e3ede9; --warn: #a85a2e; --warn-soft: #f3e6dd;
+    --border: #dcdad3; --rule: #cfcdc4;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  h1, h2, h3 {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    text-wrap: balance;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  code, .mono, table.schema th, table.schema td, .tag {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 0;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  nav.rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 2rem 1.25rem;
+    border-right: 1px solid var(--border);
+  }
+  nav.rail .brand {
+    font-family: ui-serif, Georgia, serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  nav.rail .sub {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-bottom: 1.5rem;
+  }
+  nav.rail a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    border-left: 2px solid transparent;
+    padding-left: 0.6rem;
+    margin-left: -0.6rem;
+  }
+  nav.rail a:hover, nav.rail a:focus-visible {
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  main { padding: 2.5rem 3rem 6rem; min-width: 0; }
+  header.hero {
+    margin-bottom: 3rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  header.hero .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+  }
+  header.hero h1 { font-size: 2.1rem; margin: 0 0 0.6rem; }
+  header.hero p.lede {
+    max-width: 62ch;
+    color: var(--muted);
+    font-size: 1.02rem;
+    margin: 0;
+  }
+
+  section { margin-bottom: 3.5rem; scroll-margin-top: 1.5rem; }
+  section h2 {
+    font-size: 1.35rem;
+    margin: 0 0 0.4rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  section > p.section-intro {
+    max-width: 68ch;
+    color: var(--muted);
+    margin: 0 0 1.5rem;
+  }
+
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    overflow-x: auto;
+  }
+
+  /* entity cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.1rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.1rem 1.2rem 1.3rem;
+  }
+  .card.deprecated { border-style: dashed; border-color: var(--warn); }
+  .card.new { border-color: var(--accent); }
+  .card .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .card .card-head h3 { margin: 0; font-size: 1.05rem; }
+  .tag {
+    font-size: 0.66rem;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tag.new { background: var(--accent-soft); color: var(--accent); }
+  .tag.deprecated { background: var(--warn-soft); color: var(--warn); }
+  .card p.desc { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.8rem; }
+  table.schema { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.schema th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--rule);
+    padding: 0.3rem 0.5rem 0.3rem 0;
+  }
+  table.schema td {
+    padding: 0.3rem 0.5rem 0.3rem 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  table.schema tr:last-child td { border-bottom: none; }
+  table.schema td.field { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  table.schema td.note { color: var(--muted); font-family: system-ui, sans-serif; }
+
+  /* flow steps */
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    counter-reset: step;
+  }
+  .flow .step {
+    flex: 1 1 220px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1rem 1.1rem;
+    position: relative;
+  }
+  .flow .step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    right: -0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    z-index: 1;
+    background: var(--bg);
+    width: 1.4rem;
+    text-align: center;
+  }
+  .flow .step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.9rem;
+    color: var(--accent);
+  }
+  .flow .step p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+  /* timeline */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.75rem;
+    overflow-x: auto;
+  }
+  .timeline .phase {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 0.9rem 1rem;
+    min-width: 170px;
+  }
+  .timeline .phase .num {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.3rem;
+  }
+  .timeline .phase h4 { margin: 0 0 0.4rem; font-size: 0.88rem; }
+  .timeline .phase p { margin: 0; font-size: 0.78rem; color: var(--muted); }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  .callout.warn { background: var(--warn-soft); border-left-color: var(--warn); }
+  .callout strong { color: var(--ink); }
+
+  a.focus-safe:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    nav.rail { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 2rem 1.25rem 4rem; }
+    .timeline { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="rail" aria-label="Section navigation">
+    <div class="brand">RoomGrub</div>
+    <div class="sub">Domain overview</div>
+    <a href="#map">Entity map</a>
+    <a href="#core">Core entities</a>
+    <a href="#legacy">Legacy ledger</a>
+    <a href="#new">New domain</a>
+    <a href="#flow">Write &amp; read flow</a>
+    <a href="#settlement">Settlement history</a>
+    <a href="#rollout">Rollout phases</a>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Backend · Data model</div>
+      <h1>How an expense becomes a settled balance</h1>
+      <p class="lede">
+        RoomGrub splits shared expenses across roommates. This page walks through every table involved —
+        what's live in production today, what's being phased out, and the new participant-aware,
+        precomputed-balance domain replacing it.
+      </p>
+    </header>
+
+    <section id="map">
+      <h2>Entity map</h2>
+      <p class="section-intro">
+        Solid green edges are the new domain rolling out; dashed rust edges are <code>balance</code> and the
+        contribute path, both being removed once nothing reads them.
+      </p>
+      <div class="diagram-wrap">
+```mermaid
+erDiagram
+    USERS ||--o{ USERROOMS : "is member via"
+    ROOMS ||--o{ USERROOMS : has
+    ROOMS ||--o{ SPENDINGS : contains
+    USERS ||--o{ SPENDINGS : "spent by"
+    SPENDINGS ||--o{ SPENDINGSPLITS : "split across"
+    USERS ||--o{ SPENDINGSPLITS : participates
+    ROOMS ||--o{ ROOMBALANCESUMMARY : "net position in"
+    USERS ||--o{ ROOMBALANCESUMMARY : "owes / is owed"
+    SPENDINGS ||--o{ BALANCE : "legacy settle"
+    ROOMS ||--o{ BALANCE : "legacy ledger"
+
+    SPENDINGS {
+        int money
+        bool settled
+        timestamp settled_at "new, additive"
+    }
+    SPENDINGSPLITS {
+        decimal amount_paid
+        decimal amount_owed
+    }
+    ROOMBALANCESUMMARY {
+        decimal pending_amount
+        timestamp settled_at "null = active row"
+    }
+    BALANCE {
+        decimal amount
+        string status
+    }
+```
+      </div>
+    </section>
+
+    <section id="core">
+      <h2>Core entities (unchanged)</h2>
+      <p class="section-intro">Membership and identity — untouched by this migration.</p>
+      <div class="cards">
+        <div class="card">
+          <div class="card-head"><h3>Users</h3></div>
+          <p class="desc">Registered person, authenticated via Supabase / Google OAuth.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">id</td><td class="note">PK</td></tr>
+            <tr><td class="field">email</td><td class="note">unique, used as FK by legacy tables</td></tr>
+            <tr><td class="field">name</td><td class="note"></td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Rooms</h3></div>
+          <p class="desc">A shared household.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">id</td><td class="note">PK</td></tr>
+            <tr><td class="field">admin</td><td class="note">email of creator</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>UserRooms</h3></div>
+          <p class="desc">Membership join, with role.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">user_id</td><td class="note">→ Users.id</td></tr>
+            <tr><td class="field">room_id</td><td class="note">→ Rooms.id</td></tr>
+            <tr><td class="field">role</td><td class="note">Admin / Member</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Spendings</h3></div>
+          <p class="desc">A purchase entry. Gains one additive column below.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">money</td><td class="note">amount spent</td></tr>
+            <tr><td class="field">settled</td><td class="note">null/false = pending</td></tr>
+            <tr><td class="field">settled_at</td><td class="note">new — replaces balance-join for display</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="legacy">
+      <h2>Legacy ledger <span class="tag deprecated">being removed</span></h2>
+      <p class="section-intro">
+        Every split is computed live, every read, dividing evenly across <em>all current room members</em> —
+        there's no record of who actually participated in a given expense.
+      </p>
+      <div class="cards">
+        <div class="card deprecated">
+          <div class="card-head"><h3>balance</h3><span class="tag deprecated">dropped in Phase 5</span></div>
+          <p class="desc">Settlement + contribution ledger. One row per adjustment, consumed/deleted as settlements happen — no history survives.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">amount</td><td class="note">+credit (contribute) / −debit (settle)</td></tr>
+            <tr><td class="field">spending_id</td><td class="note">null = lump-sum legacy adjustment</td></tr>
+          </table>
+        </div>
+        <div class="card deprecated">
+          <div class="card-head"><h3>"Contribute"</h3><span class="tag deprecated">removed, no replacement</span></div>
+          <p class="desc">A member could add money to the room without an expense. Route, schema, service, and model function are deleted outright in Phase 2 — this capability is not carried forward.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="new">
+      <h2>New domain <span class="tag new">rolling out</span></h2>
+      <p class="section-intro">
+        Participants are chosen explicitly per expense. The split and running balance are computed once,
+        at write time — reads become a single indexed lookup instead of a live aggregation.
+      </p>
+      <div class="cards">
+        <div class="card new">
+          <div class="card-head"><h3>SpendingSplits</h3><span class="tag new">new</span></div>
+          <p class="desc">One row per participant per expense. A row's existence <em>is</em> the participation record — <code>net</code> isn't stored, just computed as <code>amount_paid − amount_owed</code>.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">spending_id</td><td class="note">→ Spendings.id</td></tr>
+            <tr><td class="field">user_id</td><td class="note">→ Users.id</td></tr>
+            <tr><td class="field">amount_paid</td><td class="note">non-zero only on payer's row</td></tr>
+            <tr><td class="field">amount_owed</td><td class="note">money ÷ participant count</td></tr>
+          </table>
+        </div>
+        <div class="card new">
+          <div class="card-head"><h3>RoomBalanceSummary</h3><span class="tag new">new</span></div>
+          <p class="desc">A historical ledger, not a snapshot: one <strong>active</strong> row per member per room, plus any number of <strong>closed</strong> rows from past full settlements.</p>
+          <table class="schema">
+            <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">room_id, user_id</td><td class="note">at most one active row per pair</td></tr>
+            <tr><td class="field">pending_amount</td><td class="note">signed net position</td></tr>
+            <tr><td class="field">settled_at</td><td class="note">null = active; set = history</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2>Write &amp; read flow</h2>
+      <p class="section-intro">What happens the moment someone adds a grocery run, and what happens when someone checks the room's balances.</p>
+      <div class="flow">
+        <div class="step">
+          <h4>Add expense</h4>
+          <p>Payer picks participants explicitly (or none → defaults to all current room members, matching legacy behavior).</p>
+        </div>
+        <div class="step">
+          <h4>Compute split</h4>
+          <p>Even division across chosen participants; one <code>SpendingSplits</code> row per participant, written in the same transaction.</p>
+        </div>
+        <div class="step">
+          <h4>Update balance</h4>
+          <p>Each affected member's <em>active</em> <code>RoomBalanceSummary</code> row shifts by their share — no full-room recompute.</p>
+        </div>
+        <div class="step">
+          <h4>Read (cached)</h4>
+          <p>Redis cache-aside in front of the active rows. Miss → one indexed query, not a live aggregation.</p>
+        </div>
+        <div class="step">
+          <h4>Who pays whom</h4>
+          <p>Computed on the fly from the small set of active rows via greedy debt-simplification — not persisted as pairwise rows.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="settlement">
+      <h2>Settlement, as history</h2>
+      <p class="section-intro">
+        The old ledger deleted its adjustment rows as it consumed them — there was never a record of past settlements.
+        The new active/closed-row model fixes that.
+      </p>
+      <div class="callout">
+        <strong>Full settle</strong> (one member, or settle-all): the active row is stamped <code>settled_at = now()</code>
+        and frozen in place as a permanent record — "this much was owed, settled at this time." A brand-new active row
+        opens at <code>pending_amount = 0</code>. Members can page back through their closed rows to see every past settlement.
+      </div>
+      <br />
+      <div class="callout">
+        <strong>Partial / filtered settle</strong> only updates the active row's <code>pending_amount</code> in place —
+        it's not a close-out event, since the balance isn't fully zeroed.
+      </div>
+    </section>
+
+    <section id="rollout">
+      <h2>Rollout phases</h2>
+      <p class="section-intro">Additive schema first, dual-write in shadow mode, then cache-aside reads, then cut the old path loose.</p>
+      <div class="timeline">
+        <div class="phase">
+          <div class="num">Phase 0</div>
+          <h4>Schema</h4>
+          <p>Add SpendingSplits, RoomBalanceSummary, Spendings.settled_at. Nothing existing altered.</p>
+        </div>
+        <div class="phase">
+          <div class="num">Phase 1</div>
+          <h4>Backfill</h4>
+          <p>Legacy expenses get participants = current room members, even split. Spot-checked against live totals.</p>
+        </div>
+        <div class="phase">
+          <div class="num">Phase 2</div>
+          <h4>Shadow write</h4>
+          <p>New tables written alongside old reads. Contribute feature removed outright.</p>
+        </div>
+        <div class="phase">
+          <div class="num">Phase 3</div>
+          <h4>Cache-aside reads</h4>
+          <p>GET /splits cuts over to RoomBalanceSummary + Redis. Settle wired to close/reopen.</p>
+        </div>
+        <div class="phase">
+          <div class="num">Phase 4</div>
+          <h4>API surface</h4>
+          <p>Expose per-expense participant/split detail endpoint.</p>
+        </div>
+        <div class="phase">
+          <div class="num">Phase 5</div>
+          <h4>Cutover</h4>
+          <p>Old live-aggregation code deleted. balance table dropped once reference-free.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

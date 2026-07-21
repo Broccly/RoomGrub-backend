@@ -11,7 +11,7 @@ class ExpenseCreate(BaseModel):
 class ExpenseForMemberCreate(BaseModel):
     material: str
     money: float
-    user_email: str
+    user_id: int
     created_at: datetime | None = None
 
 

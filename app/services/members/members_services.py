@@ -9,9 +9,8 @@ from app.models.members.members_model import (
     update_member_role,
     remove_user_room,
     get_my_membership,
-    insert_balance_debit,
-    insert_balance_credit,
 )
+from app.models.splits.splits_model import settle_member_expenses
 from app.cache.auth_cache import invalidate_cached_room_access
 
 
@@ -76,13 +75,4 @@ def settle_member(conn: Connection, room_id: int, user_id: int) -> None:
     pending = get_member_pending(conn, room_id, member["email"])
     if pending <= 0:
         raise HTTPException(status_code=400, detail="No pending amount to settle")
-    insert_balance_debit(conn, room_id, member["email"], pending)
-
-
-def record_contribution(conn: Connection, room_id: int, user_id: int, amount: float) -> None:
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
-    member = get_member_by_user_id(conn, room_id, user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
-    insert_balance_credit(conn, room_id, member["email"], amount)
+    settle_member_expenses(conn, room_id, member["email"])

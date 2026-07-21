@@ -20,9 +20,3 @@ class FilteredUnsettledExpenseRow(BaseModel):
     id: int
     user: str
     money: float
-
-
-class SettleFilteredExpenseRow(BaseModel):
-    id: int
-    user: str
-    money: float

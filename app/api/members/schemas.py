@@ -32,7 +32,3 @@ class RoleUpdate(BaseModel):
 
 class SettleRequest(BaseModel):
     pass
-
-
-class ContributeRequest(BaseModel):
-    amount: float

@@ -84,10 +84,9 @@ def get_recent_expenses(conn: Connection, room_id: int, limit: int = 5) -> list[
     rows = conn.execute(
         text("""
             SELECT s.id, s.material, s.money, s."user", s.created_at,
-                   u.name AS user_name, u.profile AS user_profile, b.created_at AS settled_at
+                   u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
-            LEFT JOIN balance b ON b.spending_id = s.id
             WHERE s.room = :room_id
             ORDER BY s.created_at DESC
             LIMIT :limit
@@ -134,7 +133,6 @@ def count_unsettled_expenses(conn: Connection, room_id: int) -> int:
 
 
 def delete_room_cascade(conn: Connection, room_id: int) -> None:
-    conn.execute(text("DELETE FROM balance WHERE room = :id"), {"id": room_id})
     conn.execute(text('DELETE FROM "Spendings" WHERE room = :id'), {"id": room_id})
     conn.execute(text('DELETE FROM "Invite" WHERE room = :id'), {"id": room_id})
     conn.execute(text("DELETE FROM push_subscriptions WHERE room_id = :id"), {"id": room_id})

@@ -2,7 +2,7 @@ import os
 from typing import Generator
 
 import pytest
-from sqlalchemy import Connection, create_engine
+from sqlalchemy import Connection, create_engine, text
 from fastapi.testclient import TestClient
 
 from app.utils.jwt_utils import create_jwt
@@ -117,6 +117,9 @@ def add_member(conn):
 @pytest.fixture
 def make_expense(conn):
     def _make_expense(room_id: int, user_email: str, money: float = 10.0, material: str = "test item") -> dict:
-        return insert_expense(conn, room_id, user_email, material, money)
+        user_id = conn.execute(
+            text('SELECT id FROM "Users" WHERE email = :email'), {"email": user_email}
+        ).scalar_one()
+        return insert_expense(conn, room_id, user_id, user_email, material, money)
 
     return _make_expense

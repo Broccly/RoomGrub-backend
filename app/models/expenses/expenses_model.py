@@ -46,10 +46,9 @@ def get_expenses(
     rows = conn.execute(
         text(f"""
             SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
-                   u.name AS user_name, u.profile AS user_profile, b.created_at AS settled_at
+                   u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
-            LEFT JOIN balance b ON b.spending_id = s.id
             WHERE {where}
             ORDER BY s.id DESC
             LIMIT :limit
@@ -63,10 +62,9 @@ def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
             SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
-                   u.name AS user_name, u.profile AS user_profile, b.created_at AS settled_at
+                   u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
-            LEFT JOIN balance b ON b.spending_id = s.id
             WHERE s.id = :expense_id
         """),
         {"expense_id": expense_id},
@@ -111,14 +109,21 @@ def delete_expense(conn: Connection, expense_id: int) -> None:
 
 
 def insert_expense(
-    conn: Connection, room_id: int, user_email: str, material: str, money: float, created_at=None
+    conn: Connection, room_id: int, user_id: int, user_email: str, material: str, money: float, created_at=None
 ) -> dict:
     row = conn.execute(
         text("""
-            INSERT INTO "Spendings" (room, "user", material, money, created_at)
-            VALUES (:room_id, :user_email, :material, :money, COALESCE(:created_at, NOW()))
+            INSERT INTO "Spendings" (room, user_id, "user", material, money, created_at)
+            VALUES (:room_id, :user_id, :user_email, :material, :money, COALESCE(:created_at, NOW()))
             RETURNING id
         """),
-        {"room_id": room_id, "user_email": user_email, "material": material, "money": money, "created_at": created_at},
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "user_email": user_email,
+            "material": material,
+            "money": money,
+            "created_at": created_at,
+        },
     ).fetchone()
     return get_expense_by_id(conn, row.id)

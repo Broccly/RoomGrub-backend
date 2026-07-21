@@ -3,7 +3,6 @@ from app.models.splits.schemas import (
     UnsettledExpenseRow,
     MemberBalanceMemberRow,
     FilteredUnsettledExpenseRow,
-    SettleFilteredExpenseRow,
 )
 
 
@@ -47,28 +46,12 @@ def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
     paid_by_user = {r.user_email: float(r.paid) for r in paid_rows}
     fair_share = sum(paid_by_user.values()) / len(members)
 
-    adjustment_rows = conn.execute(
-        text("""
-            SELECT "user" AS user_email, COALESCE(SUM(amount), 0) AS adjustment
-            FROM balance
-            WHERE room = :room_id AND spending_id IS NULL
-            GROUP BY "user"
-        """),
-        {"room_id": room_id},
-    ).fetchall()
-    adjustment_by_user = {r.user_email: float(r.adjustment) for r in adjustment_rows}
-
     result = [
         {
             "user_email": m.user_email,
             "name": m.name,
             "profile": m.profile,
-            "pending_amount": round(
-                paid_by_user.get(m.user_email, 0.0)
-                - fair_share
-                + adjustment_by_user.get(m.user_email, 0.0),
-                2,
-            ),
+            "pending_amount": round(paid_by_user.get(m.user_email, 0.0) - fair_share, 2),
         }
         for m in members
     ]
@@ -101,39 +84,26 @@ def get_pending_for_user(conn: Connection, room_id: int, user_email: str) -> flo
         {"room_id": room_id, "email": user_email},
     ).scalar()
 
-    adjustment = conn.execute(
-        text("""
-            SELECT COALESCE(SUM(amount), 0) FROM balance
-            WHERE room = :room_id AND "user" = :email AND spending_id IS NULL
-        """),
-        {"room_id": room_id, "email": user_email},
-    ).scalar()
-
     fair_share = float(total_unsettled) / member_count
-    return round(float(paid) - fair_share + float(adjustment), 2)
+    return round(float(paid) - fair_share, 2)
 
 
-def settle_member_balance(conn: Connection, room_id: int, user_email: str, pending: float) -> None:
-    status = "debit" if pending > 0 else "credit"
+def settle_member_expenses(conn: Connection, room_id: int, user_email: str) -> None:
     conn.execute(
         text("""
-            INSERT INTO balance (room, "user", amount, status, spending_id, created_at)
-            VALUES (:room_id, :email, :amount, :status, NULL, NOW())
+            UPDATE "Spendings" SET settled = TRUE, settled_at = NOW()
+            WHERE room = :room_id AND "user" = :email AND (settled IS NULL OR settled = FALSE)
         """),
-        {"room_id": room_id, "email": user_email, "amount": -pending, "status": status},
+        {"room_id": room_id, "email": user_email},
     )
 
 
 def settle_all_room(conn: Connection, room_id: int) -> None:
     conn.execute(
         text("""
-            UPDATE "Spendings" SET settled = TRUE
+            UPDATE "Spendings" SET settled = TRUE, settled_at = NOW()
             WHERE room = :room_id AND (settled IS NULL OR settled = FALSE)
         """),
-        {"room_id": room_id},
-    )
-    conn.execute(
-        text("DELETE FROM balance WHERE room = :room_id AND spending_id IS NULL"),
         {"room_id": room_id},
     )
 
@@ -216,22 +186,10 @@ def settle_filtered_room(conn: Connection, room_id: int, expense_ids: list[int])
     if not expense_ids:
         return
 
-    rows = conn.execute(
-        text('SELECT id, "user", money FROM "Spendings" WHERE id = ANY(:ids) AND room = :room_id'),
-        {"ids": expense_ids, "room_id": room_id},
-    ).fetchall()
-    rows = [SettleFilteredExpenseRow(**r._mapping) for r in rows]
-
-    for r in rows:
-        conn.execute(
-            text("""
-                INSERT INTO balance (room, "user", amount, status, spending_id, created_at)
-                VALUES (:room_id, :email, :amount, 'debit', :spending_id, NOW())
-            """),
-            {"room_id": room_id, "email": r.user, "amount": -float(r.money), "spending_id": r.id},
-        )
-
     conn.execute(
-        text('UPDATE "Spendings" SET settled = TRUE WHERE id = ANY(:ids) AND room = :room_id'),
+        text("""
+            UPDATE "Spendings" SET settled = TRUE, settled_at = NOW()
+            WHERE id = ANY(:ids) AND room = :room_id
+        """),
         {"ids": expense_ids, "room_id": room_id},
     )

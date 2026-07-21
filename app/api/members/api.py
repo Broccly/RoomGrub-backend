@@ -8,7 +8,6 @@ from app.api.members.schemas import (
     MemberResponse,
     MemberDetail,
     RoleUpdate,
-    ContributeRequest,
 )
 from app.services.members import members_services
 
@@ -75,14 +74,3 @@ def settle_member(
     membership: dict = Depends(require_room_admin),
 ) -> None:
     members_services.settle_member(conn, room_id, user_id)
-
-
-@router.post("/{room_id}/members/{user_id}/contribute", status_code=status.HTTP_204_NO_CONTENT)
-def contribute(
-    room_id: int,
-    user_id: int,
-    body: ContributeRequest,
-    conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
-) -> None:
-    members_services.record_contribution(conn, room_id, user_id, body.amount)

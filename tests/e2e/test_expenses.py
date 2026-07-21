@@ -21,7 +21,7 @@ class TestExpensesUnauthenticated:
         assert test_client.delete(f"/api/v1/rooms/{ROOM_ID}/expenses/{EXPENSE_ID}").status_code == 401
 
     def test_add_expense_for_member(self, test_client):
-        body = {**EXPENSE_BODY, "user_email": "x@example.com"}
+        body = {**EXPENSE_BODY, "user_id": 1}
         assert test_client.post(f"/api/v1/rooms/{ROOM_ID}/expenses/for-member", json=body).status_code == 401
 
 
@@ -58,7 +58,7 @@ class TestExpensesAuthenticated:
         room = make_room(admin)
         add_member(room["id"], member)
 
-        body = {**EXPENSE_BODY, "user_email": member["email"]}
+        body = {**EXPENSE_BODY, "user_id": member["id"]}
         r = test_client.post(f"/api/v1/rooms/{room['id']}/expenses/for-member", json=body, headers=auth_headers(member))
         assert r.status_code == 403
 

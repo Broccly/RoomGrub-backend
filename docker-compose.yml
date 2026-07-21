@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: roomgrub_user
       POSTGRES_PASSWORD: roomgrub_password
     ports:
-      - "5435:5432"
+      - "5436:5432"
     volumes:
       - roomgrub_dev_db:/var/lib/postgresql/data
 

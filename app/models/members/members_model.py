@@ -85,23 +85,3 @@ def get_my_membership(conn: Connection, room_id: int, user_id: int) -> dict | No
         {"room_id": room_id, "user_id": user_id},
     ).fetchone()
     return MyMembershipRow(**row._mapping).model_dump() if row else None
-
-
-def insert_balance_debit(conn: Connection, room_id: int, user_email: str, amount: float) -> None:
-    conn.execute(
-        text("""
-            INSERT INTO Balance (room, "user", amount, status, created_at)
-            VALUES (:room_id, :user_email, :amount, 'debit', NOW())
-        """),
-        {"room_id": room_id, "user_email": user_email, "amount": -abs(amount)},
-    )
-
-
-def insert_balance_credit(conn: Connection, room_id: int, user_email: str, amount: float) -> None:
-    conn.execute(
-        text("""
-            INSERT INTO Balance (room, "user", amount, status, created_at)
-            VALUES (:room_id, :user_email, :amount, 'credit', NOW())
-        """),
-        {"room_id": room_id, "user_email": user_email, "amount": abs(amount)},
-    )

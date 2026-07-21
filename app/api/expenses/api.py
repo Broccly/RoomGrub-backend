@@ -82,5 +82,5 @@ def add_expense_for_member(
     membership: dict = Depends(require_room_admin),
 ) -> ExpenseResponse:
     return expenses_services.add_expense_for_member(
-        conn, room_id, body.material, body.money, body.user_email, body.created_at
+        conn, room_id, body.material, body.money, body.user_id, body.created_at
     )

@@ -23,9 +23,6 @@ class TestMembersUnauthenticated:
     def test_settle_member(self, test_client):
         assert test_client.post(f"/api/v1/rooms/{ROOM_ID}/members/{MEMBER_ID}/settle").status_code == 401
 
-    def test_contribute(self, test_client):
-        assert test_client.post(f"/api/v1/rooms/{ROOM_ID}/members/{MEMBER_ID}/contribute", json={"amount": 50.0}).status_code == 401
-
 
 class TestMembersAuthenticated:
     def test_list_members(self, test_client, make_user, make_room, add_member):
@@ -156,31 +153,5 @@ class TestMembersAuthenticated:
 
         r = test_client.post(
             f"/api/v1/rooms/{room['id']}/members/{member['id']}/settle", headers=auth_headers(admin)
-        )
-        assert r.status_code == 400
-
-    def test_contribute(self, test_client, make_user, make_room, add_member):
-        admin = make_user("admin13@example.com")
-        member = make_user("member13@example.com")
-        room = make_room(admin)
-        add_member(room["id"], member)
-
-        r = test_client.post(
-            f"/api/v1/rooms/{room['id']}/members/{member['id']}/contribute",
-            json={"amount": 50.0},
-            headers=auth_headers(admin),
-        )
-        assert r.status_code == 204
-
-    def test_contribute_rejects_non_positive_amount(self, test_client, make_user, make_room, add_member):
-        admin = make_user("admin14@example.com")
-        member = make_user("member14@example.com")
-        room = make_room(admin)
-        add_member(room["id"], member)
-
-        r = test_client.post(
-            f"/api/v1/rooms/{room['id']}/members/{member['id']}/contribute",
-            json={"amount": 0},
-            headers=auth_headers(admin),
         )
         assert r.status_code == 400

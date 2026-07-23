@@ -33,6 +33,19 @@ def get_member_by_user_id(conn: Connection, room_id: int, user_id: int) -> dict 
     return MemberRow(**row._mapping).model_dump() if row else None
 
 
+def get_members_by_user_ids(conn: Connection, room_id: int, user_ids: list[int]) -> list[dict]:
+    rows = conn.execute(
+        text("""
+            SELECT ur.id, u.id AS user_id, u.email, u.name, u.profile, ur.role, ur.joined_at
+            FROM "UserRooms" ur
+            JOIN "Users" u ON u.id = ur.user_id
+            WHERE ur.room_id = :room_id AND ur.user_id = ANY(:user_ids)
+        """),
+        {"room_id": room_id, "user_ids": user_ids},
+    ).fetchall()
+    return [MemberRow(**r._mapping).model_dump() for r in rows]
+
+
 def get_member_pending_expenses(conn: Connection, room_id: int, user_email: str) -> list[dict]:
     rows = conn.execute(
         text("""

@@ -66,6 +66,55 @@ class TestExpensesAuthenticated:
         assert r.status_code == 201
         assert r.json()["user"] == member["email"]
 
+    def test_add_expense_defaults_participants_to_all_room_members(
+        self, test_client, make_user, make_room, add_member
+    ):
+        admin = make_user("admin-def@example.com")
+        member = make_user("member-def@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+
+        r = test_client.post(f"/api/v1/rooms/{room['id']}/expenses", json={"material": "shared", "money": 30.0}, headers=auth_headers(admin))
+        assert r.status_code == 201
+        expense_id = r.json()["id"]
+
+        detail = test_client.get(f"/api/v1/rooms/{room['id']}/expenses/{expense_id}", headers=auth_headers(admin)).json()
+        assert len(detail["participants"]) == 2
+        by_id = {p["user_id"]: p for p in detail["participants"]}
+        assert by_id[admin["id"]]["amount_paid"] == 30.0
+        assert by_id[admin["id"]]["amount_owed"] == 15.0
+        assert by_id[member["id"]]["amount_paid"] == 0.0
+        assert by_id[member["id"]]["amount_owed"] == 15.0
+        assert detail["payer_user_id"] == admin["id"]
+
+    def test_add_expense_with_explicit_participants(self, test_client, make_user, make_room, add_member):
+        admin = make_user("admin-exp@example.com")
+        member = make_user("member-exp@example.com")
+        outsider = make_user("outsider-exp@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "just us two", "money": 20.0, "participant_user_ids": [admin["id"], member["id"]]},
+            headers=auth_headers(admin),
+        )
+        assert r.status_code == 201
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "bad", "money": 20.0, "participant_user_ids": [outsider["id"]]},
+            headers=auth_headers(admin),
+        )
+        assert r.status_code == 400
+
+    def test_get_expense_detail_not_found(self, test_client, make_user, make_room):
+        admin = make_user("admin-nf@example.com")
+        room = make_room(admin)
+
+        r = test_client.get(f"/api/v1/rooms/{room['id']}/expenses/999999", headers=auth_headers(admin))
+        assert r.status_code == 404
+
     def test_list_expenses_pagination_and_filters(self, test_client, make_user, make_room, make_expense):
         admin = make_user("admin4@example.com")
         room = make_room(admin)
@@ -134,14 +183,14 @@ class TestExpensesAuthenticated:
         r = test_client.delete(f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}", headers=auth_headers(admin))
         assert r.status_code == 404
 
-    def test_settled_at_populated_after_filtered_settle(self, test_client, make_user, make_room, make_expense):
+    def test_settled_at_populated_after_settle_all(self, test_client, make_user, make_room, make_expense):
         admin = make_user("admin9@example.com")
         room = make_room(admin)
         expense = make_expense(room["id"], admin["email"], money=20.0)
 
         r = test_client.post(
             f"/api/v1/rooms/{room['id']}/splits/settle-all",
-            json={"members": [], "member_emails": [admin["email"]]},
+            json={"members": []},
             headers=auth_headers(admin),
         )
         assert r.status_code == 204

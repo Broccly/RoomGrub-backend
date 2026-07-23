@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from app.utils.jwt_utils import create_jwt
 from app.models.auth.auth_model import upsert_user
 from app.models.rooms.rooms_model import insert_room, insert_user_room
-from app.models.expenses.expenses_model import insert_expense
+from app.models.expenses.expenses_model import insert_expense, insert_spending_splits, upsert_room_balance_summary_delta
+from app.models.members.members_model import get_members
 from db.engine import db_conn
 from db.redis_client import redis_conn
 from main import app
@@ -120,6 +121,22 @@ def make_expense(conn):
         user_id = conn.execute(
             text('SELECT id FROM "Users" WHERE email = :email'), {"email": user_email}
         ).scalar_one()
-        return insert_expense(conn, room_id, user_id, user_email, material, money)
+        expense = insert_expense(conn, room_id, user_id, user_email, material, money)
+
+        participants = get_members(conn, room_id)
+        amount_owed = round(money / len(participants), 2)
+        splits = [
+            {
+                "user_id": p["user_id"],
+                "amount_paid": money if p["user_id"] == user_id else 0,
+                "amount_owed": amount_owed,
+            }
+            for p in participants
+        ]
+        insert_spending_splits(conn, expense["id"], splits)
+        for s in splits:
+            upsert_room_balance_summary_delta(conn, room_id, s["user_id"], s["amount_paid"] - s["amount_owed"])
+
+        return expense
 
     return _make_expense

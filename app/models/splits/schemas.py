@@ -10,13 +10,8 @@ class UnsettledExpenseRow(BaseModel):
     created_at: datetime
 
 
-class MemberBalanceMemberRow(BaseModel):
+class MemberBalanceRow(BaseModel):
     user_email: str
     name: str | None
     profile: str | None
-
-
-class FilteredUnsettledExpenseRow(BaseModel):
-    id: int
-    user: str
-    money: float
+    pending_amount: float

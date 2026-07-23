@@ -10,7 +10,6 @@ from app.models.members.members_model import (
     remove_user_room,
     get_my_membership,
 )
-from app.models.splits.splits_model import settle_member_expenses
 from app.cache.auth_cache import invalidate_cached_room_access
 
 
@@ -66,13 +65,3 @@ def exit_room(conn: Connection, room_id: int, current_user: dict, redis_client: 
         )
     remove_user_room(conn, room_id, current_user["id"])
     invalidate_cached_room_access(redis_client, current_user["id"], room_id)
-
-
-def settle_member(conn: Connection, room_id: int, user_id: int) -> None:
-    member = get_member_by_user_id(conn, room_id, user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
-    pending = get_member_pending(conn, room_id, member["email"])
-    if pending <= 0:
-        raise HTTPException(status_code=400, detail="No pending amount to settle")
-    settle_member_expenses(conn, room_id, member["email"])

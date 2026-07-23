@@ -127,3 +127,62 @@ def insert_expense(
         },
     ).fetchone()
     return get_expense_by_id(conn, row.id)
+
+
+def insert_spending_splits(conn: Connection, spending_id: int, splits: list[dict]) -> None:
+    if not splits:
+        return
+    conn.execute(
+        text("""
+            INSERT INTO "SpendingSplits" (spending_id, user_id, amount_paid, amount_owed)
+            VALUES (:spending_id, :user_id, :amount_paid, :amount_owed)
+        """),
+        [{"spending_id": spending_id, **s} for s in splits],
+    )
+
+
+def get_expense_splits(conn: Connection, spending_id: int) -> list[dict]:
+    rows = conn.execute(
+        text("""
+            SELECT user_id, amount_paid, amount_owed
+            FROM "SpendingSplits"
+            WHERE spending_id = :spending_id
+        """),
+        {"spending_id": spending_id},
+    ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def delete_spending_splits(conn: Connection, spending_id: int) -> None:
+    conn.execute(
+        text('DELETE FROM "SpendingSplits" WHERE spending_id = :spending_id'),
+        {"spending_id": spending_id},
+    )
+
+
+def get_expense_participants(conn: Connection, spending_id: int) -> list[dict]:
+    rows = conn.execute(
+        text("""
+            SELECT ss.user_id, u.name, u.profile, ss.amount_paid, ss.amount_owed
+            FROM "SpendingSplits" ss
+            JOIN "Users" u ON u.id = ss.user_id
+            WHERE ss.spending_id = :spending_id
+            ORDER BY ss.user_id
+        """),
+        {"spending_id": spending_id},
+    ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def upsert_room_balance_summary_delta(conn: Connection, room_id: int, user_id: int, delta: float) -> None:
+    conn.execute(
+        text("""
+            INSERT INTO "RoomBalanceSummary" (room_id, user_id, pending_amount, settled_at, updated_at)
+            VALUES (:room_id, :user_id, :delta, NULL, NOW())
+            ON CONFLICT (room_id, user_id) WHERE settled_at IS NULL
+            DO UPDATE SET
+                pending_amount = "RoomBalanceSummary".pending_amount + EXCLUDED.pending_amount,
+                updated_at = NOW()
+        """),
+        {"room_id": room_id, "user_id": user_id, "delta": delta},
+    )

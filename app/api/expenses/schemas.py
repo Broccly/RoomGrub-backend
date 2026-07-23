@@ -6,6 +6,7 @@ class ExpenseCreate(BaseModel):
     material: str
     money: float
     created_at: datetime | None = None
+    participant_user_ids: list[int] | None = None
 
 
 class ExpenseForMemberCreate(BaseModel):
@@ -13,6 +14,7 @@ class ExpenseForMemberCreate(BaseModel):
     money: float
     user_id: int
     created_at: datetime | None = None
+    participant_user_ids: list[int] | None = None
 
 
 class ExpenseResponse(BaseModel):
@@ -37,3 +39,25 @@ class ExpenseUpdate(BaseModel):
 class PaginatedExpenses(BaseModel):
     items: list[ExpenseResponse]
     next_cursor: int | None
+
+
+class ExpenseParticipant(BaseModel):
+    user_id: int
+    name: str | None
+    profile: str | None
+    amount_paid: float
+    amount_owed: float
+    net: float
+
+
+class ExpenseDetail(BaseModel):
+    id: int
+    room: int
+    material: str
+    money: float
+    created_at: datetime
+    settled: bool | None
+    settled_at: datetime | None
+    payer_user_id: int | None
+    payer_name: str | None
+    participants: list[ExpenseParticipant]

@@ -64,13 +64,3 @@ def remove_member(
     redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
     members_services.remove_member(conn, room_id, user_id, membership["user"], redis_client)
-
-
-@router.post("/{room_id}/members/{user_id}/settle", status_code=status.HTTP_204_NO_CONTENT)
-def settle_member(
-    room_id: int,
-    user_id: int,
-    conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
-) -> None:
-    members_services.settle_member(conn, room_id, user_id)

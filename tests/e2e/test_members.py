@@ -20,9 +20,6 @@ class TestMembersUnauthenticated:
     def test_remove_member(self, test_client):
         assert test_client.delete(f"/api/v1/rooms/{ROOM_ID}/members/{MEMBER_ID}").status_code == 401
 
-    def test_settle_member(self, test_client):
-        assert test_client.post(f"/api/v1/rooms/{ROOM_ID}/members/{MEMBER_ID}/settle").status_code == 401
-
 
 class TestMembersAuthenticated:
     def test_list_members(self, test_client, make_user, make_room, add_member):
@@ -131,27 +128,4 @@ class TestMembersAuthenticated:
         room = make_room(admin)
 
         r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/{admin['id']}", headers=auth_headers(admin))
-        assert r.status_code == 400
-
-    def test_settle_member(self, test_client, make_user, make_room, add_member, make_expense):
-        admin = make_user("admin11@example.com")
-        member = make_user("member11@example.com")
-        room = make_room(admin)
-        add_member(room["id"], member)
-        make_expense(room["id"], member["email"], money=15.0)
-
-        r = test_client.post(
-            f"/api/v1/rooms/{room['id']}/members/{member['id']}/settle", headers=auth_headers(admin)
-        )
-        assert r.status_code == 204
-
-    def test_settle_member_no_pending_amount(self, test_client, make_user, make_room, add_member):
-        admin = make_user("admin12@example.com")
-        member = make_user("member12@example.com")
-        room = make_room(admin)
-        add_member(room["id"], member)
-
-        r = test_client.post(
-            f"/api/v1/rooms/{room['id']}/members/{member['id']}/settle", headers=auth_headers(admin)
-        )
         assert r.status_code == 400

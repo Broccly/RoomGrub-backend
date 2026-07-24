@@ -28,7 +28,3 @@ class MemberDetail(MemberResponse):
 
 class RoleUpdate(BaseModel):
     role: str
-
-
-class SettleRequest(BaseModel):
-    pass

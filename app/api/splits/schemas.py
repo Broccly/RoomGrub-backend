@@ -17,18 +17,24 @@ class UnsettledExpense(BaseModel):
     created_at: datetime
 
 
+class SettlementTransaction(BaseModel):
+    from_user_email: str
+    from_name: str | None
+    to_user_email: str
+    to_name: str | None
+    amount: float
+
+
 class SplitsData(BaseModel):
     members: list[MemberBalance]
     unsettled_expenses: list[UnsettledExpense]
+    settlements: list[SettlementTransaction]
 
 
-class SettleRequest(BaseModel):
+class MemberPendingAmount(BaseModel):
     user_email: str
     pending_amount: float
 
 
 class SettleAllRequest(BaseModel):
-    members: list[SettleRequest]
-    date_from: datetime | None = None
-    date_to: datetime | None = None
-    member_emails: list[str] | None = None
+    members: list[MemberPendingAmount]

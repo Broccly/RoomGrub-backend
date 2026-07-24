@@ -7,6 +7,7 @@ from app.api.expenses.schemas import (
     ExpenseForMemberCreate,
     ExpenseUpdate,
     ExpenseResponse,
+    ExpenseDetail,
     PaginatedExpenses,
 )
 from app.services.expenses import expenses_services
@@ -41,7 +42,19 @@ def add_expense(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
 ) -> ExpenseResponse:
-    return expenses_services.add_expense(conn, room_id, body.material, body.money, membership["user"], body.created_at)
+    return expenses_services.add_expense(
+        conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
+    )
+
+
+@router.get("/{room_id}/expenses/{expense_id}", response_model=ExpenseDetail)
+def get_expense(
+    room_id: int,
+    expense_id: int,
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_member),
+) -> ExpenseDetail:
+    return expenses_services.get_expense_detail(conn, room_id, expense_id)
 
 
 @router.patch("/{room_id}/expenses/{expense_id}", response_model=ExpenseResponse)
@@ -82,5 +95,5 @@ def add_expense_for_member(
     membership: dict = Depends(require_room_admin),
 ) -> ExpenseResponse:
     return expenses_services.add_expense_for_member(
-        conn, room_id, body.material, body.money, body.user_id, body.created_at
+        conn, room_id, body.material, body.money, body.user_id, body.created_at, body.participant_user_ids
     )

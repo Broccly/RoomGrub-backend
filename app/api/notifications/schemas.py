@@ -3,7 +3,6 @@ from datetime import datetime
 
 
 class NotificationCreate(BaseModel):
-    room_id: int
     activity_type: str
     title: str
     message: str

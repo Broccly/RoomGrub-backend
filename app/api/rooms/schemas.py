@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from datetime import datetime
 
 
 class RoomResponse(BaseModel):
@@ -8,21 +7,9 @@ class RoomResponse(BaseModel):
     admin: str
 
 
-class ExpenseSummary(BaseModel):
-    id: int
-    material: str
-    money: float
-    user: str
-    created_at: datetime
-    user_name: str | None
-    user_profile: str | None
-    settled_at: datetime | None
-
-
 class RoomSummary(RoomResponse):
     total_spent: float
     pending_amount: float
-    recent_expenses: list[ExpenseSummary]
 
 
 class MemberStat(BaseModel):

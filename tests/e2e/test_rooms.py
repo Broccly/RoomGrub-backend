@@ -55,11 +55,7 @@ class TestRoomsAuthenticated:
         body = r.json()
         assert body["total_spent"] == 25.0
         assert body["pending_amount"] == 25.0
-        assert len(body["recent_expenses"]) == 1
-        expense = body["recent_expenses"][0]
-        assert expense["material"] == "Groceries"
-        assert expense["user_name"] == admin["name"]
-        assert expense["settled_at"] is None
+        assert "recent_expenses" not in body
 
     def test_get_room_summary_not_found(self, test_client, make_user):
         user = make_user("nf@example.com")

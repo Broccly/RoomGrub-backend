@@ -10,6 +10,7 @@ _REQUIRED_ENV_VARS = [
   "DB_MAX_OVERFLOW",
   "JWT_SECRET",
   "REDIS_URL",
+  "GOOGLE_CLIENT_ID",
 ]
 
 def validate_env() -> None:
@@ -49,3 +50,6 @@ def get_redis_url():
 
 def get_cache_ttl_seconds() -> int:
   return int(os.environ.get("CACHE_TTL_SECONDS", "604800"))
+
+def get_google_client_id():
+  return os.environ["GOOGLE_CLIENT_ID"]

@@ -2,7 +2,6 @@ from sqlalchemy import Connection, text
 from app.models.rooms.schemas import (
     InsertRoomResponse,
     ListRoomsResponse,
-    RecentExpenseRow,
     MemberStatRow,
 )
 
@@ -80,39 +79,20 @@ def get_pending_amount(conn: Connection, room_id: int) -> float:
     return max(0.0, float(row.pending))
 
 
-def get_recent_expenses(conn: Connection, room_id: int, limit: int = 5) -> list[dict]:
-    rows = conn.execute(
-        text("""
-            SELECT s.id, s.material, s.money, s."user", s.created_at,
-                   u.name AS user_name, u.profile AS user_profile, s.settled_at
-            FROM "Spendings" s
-            LEFT JOIN "Users" u ON u.email = s."user"
-            WHERE s.room = :room_id
-            ORDER BY s.created_at DESC
-            LIMIT :limit
-        """),
-        {"room_id": room_id, "limit": limit},
-    ).fetchall()
-    return [RecentExpenseRow(**r._mapping).model_dump() for r in rows]
-
-
 def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
             SELECT
                 u.id AS user_id,
-                u.email,
                 u.name,
                 u.profile,
-                ur.role,
-                COALESCE(SUM(s.money), 0) AS total_spent,
                 COALESCE(SUM(CASE WHEN s.settled IS NOT TRUE THEN s.money ELSE 0 END), 0) AS pending_amount
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
             LEFT JOIN "Spendings" s ON s."user" = u.email AND s.room = ur.room_id
             WHERE ur.room_id = :room_id
-            GROUP BY u.id, u.email, u.name, u.profile, ur.role
-            ORDER BY total_spent DESC
+            GROUP BY u.id, u.name, u.profile
+            ORDER BY pending_amount DESC
         """),
         {"room_id": room_id},
     ).fetchall()

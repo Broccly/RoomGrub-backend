@@ -114,6 +114,16 @@ class TestMembersAuthenticated:
         r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/me", headers=auth_headers(admin))
         assert r.status_code == 403
 
+    def test_exit_room_with_outstanding_balance(self, test_client, make_user, make_room, add_member, make_expense):
+        admin = make_user("admin11@example.com")
+        member = make_user("member11@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        make_expense(room["id"], admin["email"], money=30.0)
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/me", headers=auth_headers(member))
+        assert r.status_code == 400
+
     def test_remove_member(self, test_client, make_user, make_room, add_member):
         admin = make_user("admin9@example.com")
         member = make_user("member9@example.com")
@@ -122,6 +132,16 @@ class TestMembersAuthenticated:
 
         r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/{member['id']}", headers=auth_headers(admin))
         assert r.status_code == 204
+
+    def test_remove_member_with_outstanding_balance(self, test_client, make_user, make_room, add_member, make_expense):
+        admin = make_user("admin12@example.com")
+        member = make_user("member12@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        make_expense(room["id"], admin["email"], money=30.0)
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/{member['id']}", headers=auth_headers(admin))
+        assert r.status_code == 400
 
     def test_admin_cannot_remove_self(self, test_client, make_user, make_room):
         admin = make_user("admin10@example.com")

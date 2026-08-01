@@ -55,11 +55,7 @@ class TestRoomsAuthenticated:
         body = r.json()
         assert body["total_spent"] == 25.0
         assert body["pending_amount"] == 25.0
-        assert len(body["recent_expenses"]) == 1
-        expense = body["recent_expenses"][0]
-        assert expense["material"] == "Groceries"
-        assert expense["user_name"] == admin["name"]
-        assert expense["settled_at"] is None
+        assert "recent_expenses" not in body
 
     def test_get_room_summary_not_found(self, test_client, make_user):
         user = make_user("nf@example.com")
@@ -76,9 +72,12 @@ class TestRoomsAuthenticated:
         r = test_client.get(f"/api/v1/rooms/{room['id']}/dashboard", headers=auth_headers(admin))
         assert r.status_code == 200
         body = r.json()
-        stats = {m["email"]: m for m in body["members"]}
-        assert stats[member["email"]]["total_spent"] == 40.0
-        assert stats[member["email"]]["profile"] == "https://example.com/avatar.png"
+        stats = {m["user_id"]: m for m in body["members"]}
+        assert stats[member["id"]]["pending_amount"] == 40.0
+        assert stats[member["id"]]["profile"] == "https://example.com/avatar.png"
+        assert "email" not in stats[member["id"]]
+        assert "role" not in stats[member["id"]]
+        assert "total_spent" not in stats[member["id"]]
 
     def test_delete_room(self, test_client, make_user, make_room):
         admin = make_user("admin4@example.com")

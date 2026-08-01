@@ -8,7 +8,6 @@ from app.models.rooms.rooms_model import (
     get_room_by_id,
     get_total_spent,
     get_pending_amount,
-    get_recent_expenses,
     get_member_stats,
     count_unsettled_expenses,
     delete_room_cascade,
@@ -33,8 +32,7 @@ def get_room_summary(conn: Connection, room_id: int) -> dict:
         raise HTTPException(status_code=404, detail="Room not found")
     total_spent = get_total_spent(conn, room_id)
     pending = get_pending_amount(conn, room_id)
-    recent = get_recent_expenses(conn, room_id, limit=5)
-    return {**room, "total_spent": total_spent, "pending_amount": pending, "recent_expenses": recent}
+    return {**room, "total_spent": total_spent, "pending_amount": pending}
 
 
 def get_room_dashboard(conn: Connection, room_id: int) -> dict:

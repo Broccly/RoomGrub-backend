@@ -60,6 +60,18 @@ def get_member_pending_expenses(conn: Connection, room_id: int, user_email: str)
     return [MemberPendingExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
+def get_member_total_spent(conn: Connection, room_id: int, user_id: int) -> float:
+    row = conn.execute(
+        text("""
+            SELECT COALESCE(SUM(money), 0) AS total
+            FROM "Spendings"
+            WHERE room = :room_id AND user_id = :user_id
+        """),
+        {"room_id": room_id, "user_id": user_id},
+    ).fetchone()
+    return max(0.0, float(row.total))
+
+
 def get_member_pending(conn: Connection, room_id: int, user_email: str) -> float:
     row = conn.execute(
         text("""

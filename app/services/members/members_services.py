@@ -12,6 +12,7 @@ from app.models.members.members_model import (
     get_my_membership,
 )
 from app.cache.auth_cache import invalidate_cached_room_access
+from app.models.splits.splits_model import get_pending_for_user
 
 
 def list_members(conn: Connection, room_id: int) -> list[dict]:
@@ -52,6 +53,10 @@ def remove_member(
         raise HTTPException(
             status_code=400, detail="Admin cannot remove themselves. Use /members/me to exit."
         )
+    if round(get_pending_for_user(conn, room_id, member["email"]), 2) != 0:
+        raise HTTPException(
+            status_code=400, detail="Cannot remove member with an outstanding balance. Please settle up first."
+        )
     remove_user_room(conn, room_id, user_id)
     invalidate_cached_room_access(redis_client, user_id, room_id)
 
@@ -63,6 +68,10 @@ def exit_room(conn: Connection, room_id: int, current_user: dict, redis_client: 
     if membership["role"] == "Admin":
         raise HTTPException(
             status_code=400, detail="Admin cannot exit the room. Transfer admin role first."
+        )
+    if round(get_pending_for_user(conn, room_id, membership["email"]), 2) != 0:
+        raise HTTPException(
+            status_code=400, detail="Cannot exit room with an outstanding balance. Please settle up first."
         )
     remove_user_room(conn, room_id, current_user["id"])
     invalidate_cached_room_access(redis_client, current_user["id"], room_id)

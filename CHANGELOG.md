@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - In-process circuit breaker (`db/redis_circuit.py`) that skips Redis entirely for 30s after a failure, so a Redis outage doesn't add per-request timeout latency
 - Google `id_token` verification for Google OAuth login: tokens are now cryptographically verified via `google-auth`'s `verify_oauth2_token` (audience/issuer/signature checked against `GOOGLE_CLIENT_ID`) instead of the deprecated `tokeninfo` endpoint lookup (`app/utils/auth_providers.py`, `db/config.py`)
 - `get_member_total_spent` model query for computing a member's total spend directly via `SUM(money)` instead of summing pending-expense rows in the service layer (`app/models/members/members_model.py`)
+- Restrict exit room and remove member from room, if user have pending amount(owed, owed)
 
 ### Changed
 

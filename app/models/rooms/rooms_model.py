@@ -84,18 +84,15 @@ def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
         text("""
             SELECT
                 u.id AS user_id,
-                u.email,
                 u.name,
                 u.profile,
-                ur.role,
-                COALESCE(SUM(s.money), 0) AS total_spent,
                 COALESCE(SUM(CASE WHEN s.settled IS NOT TRUE THEN s.money ELSE 0 END), 0) AS pending_amount
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
             LEFT JOIN "Spendings" s ON s."user" = u.email AND s.room = ur.room_id
             WHERE ur.room_id = :room_id
-            GROUP BY u.id, u.email, u.name, u.profile, ur.role
-            ORDER BY total_spent DESC
+            GROUP BY u.id, u.name, u.profile
+            ORDER BY pending_amount DESC
         """),
         {"room_id": room_id},
     ).fetchall()

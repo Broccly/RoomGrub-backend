@@ -13,9 +13,6 @@ class ListRoomsResponse(BaseModel):
 
 class MemberStatRow(BaseModel):
     user_id: int
-    email: str
     name: str | None
     profile: str | None
-    role: str
-    total_spent: float
     pending_amount: float

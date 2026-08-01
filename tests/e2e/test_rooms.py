@@ -72,9 +72,12 @@ class TestRoomsAuthenticated:
         r = test_client.get(f"/api/v1/rooms/{room['id']}/dashboard", headers=auth_headers(admin))
         assert r.status_code == 200
         body = r.json()
-        stats = {m["email"]: m for m in body["members"]}
-        assert stats[member["email"]]["total_spent"] == 40.0
-        assert stats[member["email"]]["profile"] == "https://example.com/avatar.png"
+        stats = {m["user_id"]: m for m in body["members"]}
+        assert stats[member["id"]]["pending_amount"] == 40.0
+        assert stats[member["id"]]["profile"] == "https://example.com/avatar.png"
+        assert "email" not in stats[member["id"]]
+        assert "role" not in stats[member["id"]]
+        assert "total_spent" not in stats[member["id"]]
 
     def test_delete_room(self, test_client, make_user, make_room):
         admin = make_user("admin4@example.com")

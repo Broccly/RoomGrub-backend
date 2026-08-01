@@ -6,6 +6,7 @@ from app.models.members.members_model import (
     get_member_by_user_id,
     get_member_pending_expenses,
     get_member_pending,
+    get_member_total_spent,
     update_member_role,
     remove_user_room,
     get_my_membership,
@@ -22,7 +23,7 @@ def get_member_detail(conn: Connection, room_id: int, user_id: int) -> dict:
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     expenses = get_member_pending_expenses(conn, room_id, member["email"])
-    total_spent = sum(e["money"] for e in expenses)
+    total_spent = get_member_total_spent(conn, room_id, user_id)
     pending = get_member_pending(conn, room_id, member["email"])
     return {**member, "total_spent": total_spent, "pending_amount": pending, "expenses": expenses}
 

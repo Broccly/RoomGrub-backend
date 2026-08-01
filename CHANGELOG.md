@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redis (Upstash) cache-aside layer for auth (`get_current_user`) and room-membership checks (`require_room_member`), with active invalidation on room create/delete, invite accept, role change, and member remove/exit (`app/cache/auth_cache.py`, `db/redis_client.py`, dependency/service wiring)
 - Fail-open Redis handling: cache read/write/invalidate errors are caught and logged as warnings, falling back to Postgres instead of failing the request
 - In-process circuit breaker (`db/redis_circuit.py`) that skips Redis entirely for 30s after a failure, so a Redis outage doesn't add per-request timeout latency
+- Google `id_token` verification for Google OAuth login: tokens are now cryptographically verified via `google-auth`'s `verify_oauth2_token` (audience/issuer/signature checked against `GOOGLE_CLIENT_ID`) instead of the deprecated `tokeninfo` endpoint lookup (`app/utils/auth_providers.py`, `db/config.py`)
+- `get_member_total_spent` model query for computing a member's total spend directly via `SUM(money)` instead of summing pending-expense rows in the service layer (`app/models/members/members_model.py`)
+
+### Changed
+
+- Room dashboard/summary response cleanup: removed `recent_expenses` from `GET /rooms/{room_id}/summary` and dropped `email`, `role`, `total_spent` from per-member stats, leaving only `pending_amount` (`app/api/rooms/schemas.py`, `app/models/rooms/rooms_model.py`, `app/models/rooms/schemas.py`, `app/services/rooms/rooms_services.py`)
+- Notifications routes moved under the room-scoped prefix and now require room membership instead of just authentication: `POST /notifications` → `POST /rooms/{room_id}/notifications`, with `room_id` taken from the path instead of the request body; all notification endpoints now depend on `require_room_member` instead of `get_current_user` (`app/api/notifications/api.py`, `app/api/notifications/schemas.py`) — fixes an IDOR where any authenticated user could post/list notifications or manage push subscriptions for a room they weren't a member of
+
+### Fixed
+
+- Member `total_spent` now reflects all of a member's spendings in the room (via `get_member_total_spent`), rather than only summing the subset of expenses currently marked pending (`app/services/members/members_services.py`)
 
 ## [1.0.0] - 2026-07-04
 ### Added

@@ -7,3 +7,4 @@ class UpsertUserRow(BaseModel):
     email: str
     name: str | None
     profile: str | None
+    inserted: bool

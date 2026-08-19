@@ -11,7 +11,7 @@ def upsert_user(conn: Connection, uid: str, email: str, name: str | None, profil
               SET uid = EXCLUDED.uid,
                   name = EXCLUDED.name,
                   profile = EXCLUDED.profile
-            RETURNING id, uid, email, name, profile
+            RETURNING id, uid, email, name, profile, (xmax = 0) as inserted
         """),
         {"uid": uid, "email": email, "name": name, "profile": profile},
     ).fetchone()

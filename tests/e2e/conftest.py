@@ -21,6 +21,7 @@ class FakeRedis:
 
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
+        self.streams: dict[str, list[dict]] = {}
 
     def get(self, key: str) -> str | None:
         return self._store.get(key)
@@ -31,6 +32,9 @@ class FakeRedis:
     def delete(self, *keys: str) -> None:
         for key in keys:
             self._store.pop(key, None)
+
+    def xadd(self, stream: str, fields: dict) -> None:
+        self.streams.setdefault(stream, []).append(fields)
 
 
 def _get_test_db_url() -> str:
@@ -69,12 +73,17 @@ def conn(db_engine) -> Generator[Connection, None, None]:
 
 
 @pytest.fixture
-def test_client(conn) -> Generator[TestClient, None, None]:
+def fake_redis() -> FakeRedis:
+    return FakeRedis()
+
+
+@pytest.fixture
+def test_client(conn, fake_redis) -> Generator[TestClient, None, None]:
     def _override_db_conn():
         yield conn
 
     def _override_redis_conn():
-        yield FakeRedis()
+        yield fake_redis
 
     app.dependency_overrides[db_conn] = _override_db_conn
     app.dependency_overrides[redis_conn] = _override_redis_conn

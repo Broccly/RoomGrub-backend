@@ -1,3 +1,5 @@
+import json
+
 from app.services.auth import auth_services
 
 
@@ -6,7 +8,7 @@ class TestAuth:
         r = test_client.post("/api/v1/auth/login", json={"provider": "twitter", "token": "abc"})
         assert r.status_code == 400
 
-    def test_login_creates_and_returns_user(self, test_client, monkeypatch):
+    def test_login_creates_and_returns_user(self, test_client, monkeypatch, fake_redis):
         monkeypatch.setattr(
             auth_services,
             "verify_provider_token",
@@ -26,7 +28,13 @@ class TestAuth:
         assert body["user"]["name"] == "New User"
         assert body["user"]["profile"] == "https://example.com/p.png"
 
-    def test_login_upserts_existing_user_by_email(self, test_client, monkeypatch, make_user):
+        events = fake_redis.streams.get("rg:emails", [])
+        assert len(events) == 1
+        assert events[0]["type"] == "welcome"
+        payload = json.loads(events[0]["payload"])
+        assert payload == {"email": "newuser@example.com", "name": "New User"}
+
+    def test_login_upserts_existing_user_by_email(self, test_client, monkeypatch, make_user, fake_redis):
         existing = make_user("existing@example.com", name="Old Name", profile=None)
 
         monkeypatch.setattr(
@@ -45,3 +53,5 @@ class TestAuth:
         assert body["user"]["id"] == existing["id"]
         assert body["user"]["name"] == "Updated Name"
         assert body["user"]["profile"] == "https://example.com/updated.png"
+
+        assert fake_redis.streams.get("rg:emails", []) == []

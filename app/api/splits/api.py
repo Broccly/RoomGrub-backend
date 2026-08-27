@@ -4,6 +4,8 @@ from db.engine import db_conn
 from app.dependencies.room_access import require_room_admin, require_room_member
 from app.api.splits.schemas import SplitsData, SettleAllRequest
 from app.services.splits import splits_services
+from db.redis_client import redis_conn
+import redis
 
 router = APIRouter(prefix="/api/v1/rooms", tags=["Splits"])
 
@@ -23,5 +25,6 @@ def settle_all(
     body: SettleAllRequest,
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
+    redis_client: redis.Redis = Depends(redis_conn)
 ) -> None:
-    splits_services.settle_all(conn, room_id, [m.model_dump() for m in body.members])
+    splits_services.settle_all(conn, room_id, [m.model_dump() for m in body.members], redis_client)

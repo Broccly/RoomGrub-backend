@@ -29,6 +29,7 @@ class SplitsData(BaseModel):
     members: list[MemberBalance]
     unsettled_expenses: list[UnsettledExpense]
     settlements: list[SettlementTransaction]
+    total_pending: int
 
 
 class MemberPendingAmount(BaseModel):

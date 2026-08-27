@@ -5,7 +5,10 @@ from app.models.splits.splits_model import (
     get_member_balances,
     get_pending_for_user,
     settle_all_room,
+    get_total_pending_amount
 )
+import redis
+from app.events.publisher import publish_event
 
 TOLERANCE = 0.01
 
@@ -47,10 +50,11 @@ def get_splits_data(conn: Connection, room_id: int) -> dict:
     members = get_member_balances(conn, room_id)
     unsettled = get_unsettled_expenses(conn, room_id)
     settlements = _simplify_debts(members)
-    return {"members": members, "unsettled_expenses": unsettled, "settlements": settlements}
+    total_pending = get_total_pending_amount(conn, room_id)
+    return {"members": members, "unsettled_expenses": unsettled, "settlements": settlements, "total_pending": total_pending}
 
 
-def settle_all(conn: Connection, room_id: int, members: list[dict]) -> None:
+def settle_all(conn: Connection, room_id: int, members: list[dict], redis_client: redis.Redis) -> None:
     for member in members:
         server_pending = get_pending_for_user(conn, room_id, member["user_email"])
         if abs(server_pending - member["pending_amount"]) > TOLERANCE:
@@ -60,4 +64,12 @@ def settle_all(conn: Connection, room_id: int, members: list[dict]) -> None:
                        f"server={server_pending:.2f}, client={member['pending_amount']:.2f}",
             )
 
+    data = get_splits_data(conn, room_id)
     settle_all_room(conn, room_id)
+
+    publish_event(redis_client, "expense_split", {
+        "expense_title": "All expenses settled up",
+        "total_pending": float(data["total_pending"]),
+        "members": [{"name": m["name"], "email": m["user_email"], "pending_amount": m["pending_amount"]} for m in data["members"]],
+        "settlements": [{"from_name": s["from_name"], "to_name": s["to_name"], "amount": s["amount"]} for s in data["settlements"]]
+    } )

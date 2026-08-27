@@ -1,3 +1,5 @@
+import json
+
 from tests.e2e.conftest import auth_headers
 
 ROOM_ID = 999999
@@ -29,6 +31,7 @@ class TestSplitsAuthenticated:
         assert by_email[member["email"]]["pending_amount"] == -50.0
         assert by_email[member["email"]]["profile"] == member["profile"]
         assert len(body["unsettled_expenses"]) == 1
+        assert body["total_pending"] == 100.0
 
     def test_get_splits_settlements_minimal_transactions(
         self, test_client, make_user, make_room, add_member, make_expense
@@ -56,8 +59,11 @@ class TestSplitsAuthenticated:
         assert settlements[0]["from_user_email"] == c["email"]
         assert settlements[0]["to_user_email"] == b["email"]
         assert settlements[0]["amount"] == 30.0
+        assert body["total_pending"] == 90.0
 
-    def test_settle_all_unfiltered(self, test_client, make_user, make_room, add_member, make_expense):
+    def test_settle_all_unfiltered(
+        self, test_client, make_user, make_room, add_member, make_expense, fake_redis
+    ):
         admin = make_user("admin4@example.com")
         member = make_user("member4@example.com")
         room = make_room(admin)
@@ -75,6 +81,13 @@ class TestSplitsAuthenticated:
 
         splits_after = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(admin)).json()
         assert splits_after["unsettled_expenses"] == []
+
+        events = fake_redis.streams.get("rg:emails", [])
+        assert len(events) == 1
+        assert events[0]["type"] == "expense_split"
+        payload = json.loads(events[0]["payload"])
+        assert payload["expense_title"] == "All expenses settled up"
+        assert payload["total_pending"] == 100.0
 
     def test_settle_all_sets_settled_at(
         self, test_client, make_user, make_room, add_member, make_expense
@@ -94,3 +107,40 @@ class TestSplitsAuthenticated:
         settled = next(i for i in items if i["id"] == expense["id"])
         assert settled["settled"] is True
         assert settled["settled_at"] is not None
+
+    def test_settle_all_publishes_expense_split_payload(
+        self, test_client, make_user, make_room, add_member, make_expense, fake_redis
+    ):
+        a = make_user("payload-a@example.com", name="Alice")
+        b = make_user("payload-b@example.com", name="Bob")
+        c = make_user("payload-c@example.com", name="Carol")
+        room = make_room(a)
+        add_member(room["id"], b)
+        add_member(room["id"], c)
+        make_expense(room["id"], a["email"], money=30.0)
+        make_expense(room["id"], b["email"], money=60.0)
+
+        splits = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(a)).json()
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/splits/settle-all",
+            json={"members": splits["members"]},
+            headers=auth_headers(a),
+        )
+        assert r.status_code == 204
+
+        events = fake_redis.streams.get("rg:emails", [])
+        assert len(events) == 1
+        assert events[0]["type"] == "expense_split"
+        payload = json.loads(events[0]["payload"])
+
+        assert payload["total_pending"] == 90.0
+
+        members_by_email = {m["email"]: m for m in payload["members"]}
+        assert members_by_email[a["email"]] == {"name": "Alice", "email": a["email"], "pending_amount": 0.0}
+        assert members_by_email[b["email"]] == {"name": "Bob", "email": b["email"], "pending_amount": 30.0}
+        assert members_by_email[c["email"]] == {"name": "Carol", "email": c["email"], "pending_amount": -30.0}
+
+        assert payload["settlements"] == [
+            {"from_name": "Carol", "to_name": "Bob", "amount": 30.0}
+        ]

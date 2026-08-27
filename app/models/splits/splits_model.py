@@ -16,6 +16,19 @@ def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
     return [UnsettledExpenseRow(**r._mapping).model_dump() for r in rows]
 
 
+def get_total_pending_amount(conn: Connection, room_id: int) -> float:
+    row = conn.execute(
+        text("""
+        SELECT sum(money)
+        FROM "Spendings"
+        WHERE room = :room_id
+        AND (settled IS NULL or settled = FALSE)
+    """),
+    {"room_id": room_id}
+    ).fetchone()
+    return row[0] or 0
+
+
 def get_member_balances(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""

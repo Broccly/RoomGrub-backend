@@ -11,6 +11,7 @@ from app.api.members.api import router as members_router
 from app.api.splits.api import router as splits_router
 from app.api.invites.api import router as invites_router
 from app.api.notifications.api import router as notifications_router
+from app.api.notifications.api import push_router
 
 app = FastAPI(title="RoomGrub API", version="0.1.0")
 
@@ -33,6 +34,7 @@ app.include_router(expenses_router)
 app.include_router(members_router)
 app.include_router(splits_router)
 app.include_router(invites_router)
+app.include_router(push_router)
 # Notifications disabled for now — routes kept in codebase, not wired up.
 # app.include_router(notifications_router)
 

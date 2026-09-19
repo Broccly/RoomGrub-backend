@@ -53,3 +53,6 @@ def get_cache_ttl_seconds() -> int:
 
 def get_google_client_id():
   return os.environ["GOOGLE_CLIENT_ID"]
+
+def get_firebase_credentials_json() -> str | None:
+  return os.environ.get("FIREBASE_CREDENTIALS_JSON")

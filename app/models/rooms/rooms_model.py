@@ -115,7 +115,6 @@ def count_unsettled_expenses(conn: Connection, room_id: int) -> int:
 def delete_room_cascade(conn: Connection, room_id: int) -> None:
     conn.execute(text('DELETE FROM "Spendings" WHERE room = :id'), {"id": room_id})
     conn.execute(text('DELETE FROM "Invite" WHERE room = :id'), {"id": room_id})
-    conn.execute(text("DELETE FROM push_subscriptions WHERE room_id = :id"), {"id": room_id})
     conn.execute(text("DELETE FROM notifications WHERE room_id = :id"), {"id": room_id})
     conn.execute(text('DELETE FROM "UserRooms" WHERE room_id = :id'), {"id": room_id})
     conn.execute(text('DELETE FROM "Rooms" WHERE id = :id'), {"id": room_id})

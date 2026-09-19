@@ -2,14 +2,17 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.room_access import require_room_member
+from app.dependencies.current_user import get_current_user
 from app.api.notifications.schemas import (
     NotificationCreate,
     NotificationResponse,
-    PushSubscriptionUpsert,
+    FcmTokenRegister,
+    FcmTokenUnregister,
 )
 from app.services.notifications import notifications_services
 
 router = APIRouter(prefix="/api/v1/rooms", tags=["Notifications"])
+push_router = APIRouter(prefix="/api/v1/notifications", tags=["Push"])
 
 
 @router.post("/{room_id}/notifications", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
@@ -42,28 +45,19 @@ def list_notifications(
     return notifications_services.list_notifications(conn, room_id)
 
 
-@router.post(
-    "/{room_id}/push-subscriptions",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def register_push(
-    room_id: int,
-    body: PushSubscriptionUpsert,
+@push_router.post("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
+def register_fcm_token(
+    body: FcmTokenRegister,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_member),
+    current_user: dict = Depends(get_current_user),
 ) -> None:
-    notifications_services.register_push(
-        conn, room_id, membership["user"]["id"], body.endpoint, body.p256dh_key, body.auth_key
-    )
+    notifications_services.register_push(conn, current_user["id"], body.fcm_token, body.platform)
 
 
-@router.delete(
-    "/{room_id}/push-subscriptions",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def unregister_push(
-    room_id: int,
+@push_router.delete("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
+def unregister_fcm_token(
+    body: FcmTokenUnregister,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_member),
+    current_user: dict = Depends(get_current_user),
 ) -> None:
-    notifications_services.unregister_push(conn, room_id, membership["user"]["id"])
+    notifications_services.unregister_push(conn, current_user["id"], body.fcm_token)

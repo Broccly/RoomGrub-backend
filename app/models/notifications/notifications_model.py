@@ -43,37 +43,41 @@ def get_notifications(conn: Connection, room_id: int, limit: int = 50) -> list[d
     ).fetchall()
     return [NotificationRow(**r._mapping).model_dump() for r in rows]
 
-
-def upsert_push_subscription(
-    conn: Connection,
-    user_id: int,
-    room_id: int,
-    endpoint: str,
-    p256dh_key: str,
-    auth_key: str,
-) -> None:
+def upsert_fcm_token(conn: Connection, user_id: int, fcm_token: str, platform: str = "android") -> None:
     conn.execute(
         text("""
-            INSERT INTO push_subscriptions (user_id, room_id, endpoint, p256dh_key, auth_key, created_at, updated_at)
-            VALUES (:user_id, :room_id, :endpoint, :p256dh_key, :auth_key, NOW(), NOW())
-            ON CONFLICT (user_id, room_id) DO UPDATE
-              SET endpoint = EXCLUDED.endpoint,
-                  p256dh_key = EXCLUDED.p256dh_key,
-                  auth_key = EXCLUDED.auth_key,
+            INSERT INTO fcm_tokens (user_id, fcm_token, platform, created_at, updated_at)
+            VALUES (:user_id, :fcm_token, :platform, NOW(), NOW())
+            ON CONFLICT (fcm_token) DO UPDATE
+              SET user_id = EXCLUDED.user_id,
+                  platform = EXCLUDED.platform,
                   updated_at = NOW()
         """),
         {
             "user_id": user_id,
-            "room_id": room_id,
-            "endpoint": endpoint,
-            "p256dh_key": p256dh_key,
-            "auth_key": auth_key,
-        },
+            "fcm_token": fcm_token,
+            "platform": platform
+        }
     )
 
-
-def delete_push_subscription(conn: Connection, user_id: int, room_id: int) -> None:
+def delete_fcm_token(conn: Connection, user_id: int, fcm_token: str) -> None:
     conn.execute(
-        text("DELETE FROM push_subscriptions WHERE user_id = :user_id AND room_id = :room_id"),
-        {"user_id": user_id, "room_id": room_id},
+        text("""
+            DELETE FROM fcm_tokens WHERE user_id = :user_id AND fcm_token = :fcm_token
+        """),
+        { "user_id": user_id, "fcm_token": fcm_token }
+    )
+
+def get_fcm_tokens_for_users(conn: Connection, user_ids: list[int]) -> list[str]:
+    rows = conn.execute(
+        text("SELECT fcm_token FROM fcm_tokens WHERE user_id = ANY(:user_ids)"),
+        {"user_ids": user_ids},
+    ).fetchall()
+    return [r.fcm_token for r in rows]
+
+
+def delete_fcm_tokens(conn: Connection, fcm_tokens: list[str]) -> None:
+    conn.execute(
+        text("DELETE FROM fcm_tokens WHERE fcm_token = ANY(:fcm_tokens)"),
+        {"fcm_tokens": fcm_tokens},
     )

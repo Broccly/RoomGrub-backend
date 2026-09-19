@@ -1,3 +1,4 @@
+from app.services.expenses import expenses_services
 from tests.e2e.conftest import auth_headers
 
 ROOM_ID = 999999
@@ -40,6 +41,54 @@ class TestExpensesAuthenticated:
         assert body["user_profile"] == admin["profile"]
         assert body["settled"] is None
         assert body["settled_at"] is None
+
+    def test_add_expense_notifies_participants_except_adder(
+        self, test_client, make_user, make_room, add_member, monkeypatch
+    ):
+        calls = []
+        monkeypatch.setattr(expenses_services, "send_push", lambda conn, user_ids, **kw: calls.append((user_ids, kw)))
+        admin = make_user("push-admin@example.com", name="Priya")
+        in_split = make_user("push-in@example.com")
+        not_in_split = make_user("push-out@example.com")
+        room = make_room(admin)
+        add_member(room["id"], in_split)
+        add_member(room["id"], not_in_split)
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "Milk", "money": 120, "participant_user_ids": [admin["id"], in_split["id"]]},
+            headers=auth_headers(admin),
+        )
+
+        assert r.status_code == 201
+        [(user_ids, kw)] = calls
+        assert user_ids == [in_split["id"]]
+        assert kw["title"] == "Priya added Milk"
+        assert kw["body"] == "₹120 · your share ₹60"
+        assert kw["data"] == {"type": "expense_added", "room_id": str(room["id"]), "expense_id": str(r.json()["id"])}
+
+    def test_add_expense_survives_failing_push_query(
+        self, test_client, make_user, make_room, add_member, monkeypatch
+    ):
+        # A failed SQL statement aborts the Postgres transaction; send_push must
+        # isolate it so the expense still commits.
+        from sqlalchemy import text
+        from app.services.notifications import push_service
+
+        def broken_lookup(conn, user_ids):
+            conn.execute(text("SELECT * FROM table_that_does_not_exist"))
+
+        monkeypatch.setattr(push_service, "get_fcm_tokens_for_users", broken_lookup)
+        admin = make_user("push-fail-admin@example.com")
+        other = make_user("push-fail-other@example.com")
+        room = make_room(admin)
+        add_member(room["id"], other)
+
+        r = test_client.post(f"/api/v1/rooms/{room['id']}/expenses", json=EXPENSE_BODY, headers=auth_headers(admin))
+        assert r.status_code == 201
+
+        r = test_client.get(f"/api/v1/rooms/{room['id']}/expenses", headers=auth_headers(admin))
+        assert [e["material"] for e in r.json()["items"]] == ["test item"]
 
     def test_add_expense_rejects_non_positive_amount(self, test_client, make_user, make_room):
         admin = make_user("admin2@example.com")

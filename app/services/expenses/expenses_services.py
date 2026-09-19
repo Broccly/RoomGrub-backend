@@ -13,6 +13,7 @@ from app.models.expenses.expenses_model import (
     upsert_room_balance_summary_delta,
 )
 from app.models.members.members_model import get_member_by_user_id, get_members, get_members_by_user_ids
+from app.services.notifications.push_service import send_push
 
 
 def list_expenses(
@@ -73,6 +74,21 @@ def _reverse_splits_and_balances(conn: Connection, room_id: int, spending_id: in
     return old_splits
 
 
+def _notify_expense_added(
+    conn: Connection, room_id: int, expense: dict, actor: dict, money: float, participants: list[dict]
+) -> None:
+    # Only people in the split get notified, never the person who added it.
+    recipients = [p["user_id"] for p in participants if p["user_id"] != actor["id"]]
+    share = round(money / len(participants), 2)
+    send_push(
+        conn,
+        recipients,
+        title=f"{actor['name'] or actor['email']} added {expense['material']}",
+        body=f"₹{money:g} · your share ₹{share:g}",
+        data={"type": "expense_added", "room_id": str(room_id), "expense_id": str(expense["id"])},
+    )
+
+
 def add_expense(
     conn: Connection,
     room_id: int,
@@ -87,6 +103,7 @@ def add_expense(
     participants = _resolve_participants(conn, room_id, participant_user_ids)
     expense = insert_expense(conn, room_id, current_user["id"], current_user["email"], material, money, created_at)
     _apply_splits_and_balances(conn, room_id, expense["id"], current_user["id"], money, participants)
+    _notify_expense_added(conn, room_id, expense, current_user, money, participants)
     return expense
 
 
@@ -96,6 +113,7 @@ def add_expense_for_member(
     material: str,
     money: float,
     user_id: int,
+    admin_user: dict,
     created_at=None,
     participant_user_ids: list[int] | None = None,
 ) -> dict:
@@ -107,6 +125,7 @@ def add_expense_for_member(
     participants = _resolve_participants(conn, room_id, participant_user_ids)
     expense = insert_expense(conn, room_id, user_id, member["email"], material, money, created_at)
     _apply_splits_and_balances(conn, room_id, expense["id"], user_id, money, participants)
+    _notify_expense_added(conn, room_id, expense, admin_user, money, participants)
     return expense
 
 

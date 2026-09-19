@@ -2,8 +2,8 @@ from sqlalchemy import Connection
 from app.models.notifications.notifications_model import (
     insert_notification,
     get_notifications,
-    upsert_push_subscription,
-    delete_push_subscription,
+    upsert_fcm_token,
+    delete_fcm_token
 )
 
 
@@ -26,9 +26,9 @@ def list_notifications(conn: Connection, room_id: int) -> list[dict]:
     return get_notifications(conn, room_id)
 
 
-def register_push(conn: Connection, room_id: int, user_id: int, endpoint: str, p256dh_key: str, auth_key: str) -> None:
-    upsert_push_subscription(conn, user_id, room_id, endpoint, p256dh_key, auth_key)
+def register_push(conn: Connection, user_id: int, fcm_token: str, platform: str) -> None:
+    upsert_fcm_token(conn, user_id, fcm_token, platform = platform)
 
 
-def unregister_push(conn: Connection, room_id: int, user_id: int) -> None:
-    delete_push_subscription(conn, user_id, room_id)
+def unregister_push(conn: Connection, user_id: int, fcm_token: str) -> None:
+    delete_fcm_token(conn, user_id, fcm_token)

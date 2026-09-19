@@ -18,7 +18,10 @@ class NotificationResponse(BaseModel):
     created_at: datetime
 
 
-class PushSubscriptionUpsert(BaseModel):
-    endpoint: str
-    p256dh_key: str
-    auth_key: str
+class FcmTokenRegister(BaseModel):
+    fcm_token: str
+    platform: str = "android"
+
+
+class FcmTokenUnregister(BaseModel):
+    fcm_token: str

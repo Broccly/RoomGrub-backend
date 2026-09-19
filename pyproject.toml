@@ -18,5 +18,6 @@ dependencies = [
     "httpx >= 0.27",
     "redis >= 5.0",
     "google-auth >= 2.34.0",
-    "requests >= 2.32.0"
+    "requests >= 2.32.0",
+    "firebase_admin >= 7.6.0"
 ]

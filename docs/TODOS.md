@@ -1,157 +1,104 @@
 # RoomGrub Backend — TODO Checklist
 
-## Project Setup
-- [x] Create `pyproject.toml` with project metadata
-- [x] Create `requirements.txt` with pinned dependencies
-- [x] Create `.env.example` with all required env vars documented
-- [x] Create `db/config.py` — per-variable env getter functions
-- [x] Create `db/engine.py` — sync SQLAlchemy engine + `db_conn()` session generator
-- [x] Scaffold `app/api/`, `app/models/`, `app/services/`, `app/dependencies/` folder structure
-- [x] Fix `main.py` — router registration is currently broken (imports routers as functions, not router objects)
-- [x] `GET /api/v1/health` — simple endpoint to confirm DB connectivity
-- [x] Set up `pytest` with a test DB session fixture and test client in `tests/conftest.py`
+Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for the bigger picture and [CHANGELOG.md](../CHANGELOG.md) for what landed when.
 
-## Pydantic Schemas
-Each domain's schemas live in `app/api/<domain>/schemas.py`:
-- [x] `app/api/auth/schemas.py` — UserSyncRequest, UserResponse
-- [x] `app/api/rooms/schemas.py` — RoomCreate, RoomResponse, RoomSummary, MemberStat, DashboardResponse
-- [x] `app/api/expenses/schemas.py` — ExpenseCreate, ExpenseForMemberCreate, ExpenseResponse, PaginatedExpensesResponse
-- [x] `app/api/members/schemas.py` — MemberResponse, MemberDetail, RoleUpdate
-- [x] `app/api/splits/schemas.py` — SplitsData, SettleRequest, SettleAllRequest, MemberBalance
-- [x] `app/api/invites/schemas.py` — InviteCreate, InviteValidation, InviteResponse
-- [x] `app/api/notifications/schemas.py` — NotificationCreate, PushSubscriptionUpsert
+## Open
 
-## Dependencies
-- [x] `app/dependencies/current_user.py` — `get_current_user` (JWT verify + DB lookup)
-- [x] `app/dependencies/room_access.py` — `require_room_member`, `require_room_admin`
+### Code vs. convention
+- [ ] **Services raise `HTTPException`.** The rule (AGENTS.md) is: routers and dependencies raise `HTTPException`; services raise plain exceptions that routers convert. Today `rooms`, `expenses`, `members`, `splits` and `invites` services — and `app/utils/auth_providers.py` — raise `HTTPException` directly. Refactor to plain exceptions (`ValueError` → 400, `PermissionError` → 403, a not-found error → 404, invite gone → 410) with the conversion in each router, keeping status codes and messages unchanged so the e2e tests still pass.
+- [ ] `expenses_model.get_expenses` and `update_expense` assemble their `WHERE` / `SET` clauses with f-strings. Values are bound and the fragments are static, so it is not injectable, but it breaks the "no f-string SQL" rule — rewrite as static parameterized queries, as was done for the splits filters in 1.0.0.
 
-## Routers & Services
+### Stale artifacts
+- [ ] Regenerate `db/schema.sql`. It stops at migration `20260724130000` — it still has `push_subscriptions` and no `fcm_tokens` — and it was dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
+- [ ] `tests/e2e/test_notifications.py` still exercises the deleted `/rooms/{room_id}/push-subscriptions` routes and the unmounted notifications router. Rewrite it against `POST` / `DELETE /api/v1/notifications/fcm-token`.
+- [ ] Drop `alembic` from `requirements.txt` and `pyproject.toml` — migrations are dbmate.
+- [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so the README's install-then-`pytest -v` steps fail on a fresh virtualenv. Add it as a dev dependency.
+- [ ] Drop the unused `SpendingParticipants` table (created by the baseline migration, superseded by `SpendingSplits`).
+- [ ] Tag releases in git (`v1.0.0`, `v1.1.0`, `v1.2.0`) to match CHANGELOG.md.
+
+### Behaviour to verify or fix
+- [ ] Editing or deleting an **already settled** expense reverses its splits against the member's *current* active balance. Either block edits/deletes of settled expenses or skip the balance reversal for them.
+- [ ] If the payer is not in `participant_user_ids`, no split row records `amount_paid`: the balances for that expense don't net to zero, and a later `money` edit drops its splits entirely (`edit_expense` only re-applies when it finds a payer row). Decide whether the payer must always be a participant.
+- [ ] Share rounding: `round(money / n, 2)` per participant can leave a cent of drift per expense. Assign the remainder to one participant so splits always sum to `money`.
+- [ ] `Spendings.money` is `bigint` while the API accepts fractional amounts and splits are `numeric(10,2)` — confirm whether fractional expenses are meant to be supported and align the column.
+- [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused).
+- [ ] Settle-all only verifies the members the client sends. Decide whether to require every member with a non-zero balance.
+- [ ] Events are published before the request's transaction commits; a later rollback would leave a `welcome` / `expense_split` event for something that didn't happen.
+
+### Features not built yet
+- [ ] Settlement-history endpoint — list a member's closed `RoomBalanceSummary` rows, most recent first. The data is already being recorded.
+- [ ] Activity log: decide whether to mount `notifications_router` (currently commented out in `main.py`) and have expense / member / settle actions write to it, or delete the router, service, model and table.
+- [ ] Push for more than "expense added": settle-all, member joined, member removed.
+- [ ] Changing an expense's participants after creation.
+- [ ] `GET /health` does not touch the DB — add a readiness check that does.
+- [ ] Move CORS origins from `main.py` to an env var.
+- [ ] Prod environment: `PROD_DB_*` vars, `prod_database_url` in `scripts/db_url.sh` (see MIGRATIONS.md).
+
+### Clients
+- [ ] Web (Next.js): replace remaining Server Actions with calls to this API; send the RoomGrub JWT.
+- [ ] Android: register / unregister the FCM token around login / logout; handle `expense_added` push payloads.
+- [ ] Email consumer for the `rg:emails` stream lives outside this repo — document its contract there and link it from ARCHITECTURE.md.
+
+---
+
+## Done
+
+### Project setup
+- [x] `pyproject.toml`, `requirements.txt`, `.env.example`
+- [x] `db/config.py` — per-variable env getters, `validate_env()` on first DB use
+- [x] `db/engine.py` — lazy sync SQLAlchemy engine + `db_conn()`
+- [x] `app/api/`, `app/models/`, `app/services/`, `app/dependencies/` structure, all routers registered in `main.py`
+- [x] `GET /health`
+- [x] Local Docker Postgres for dev and test, dbmate migrations, migrate scripts
+- [x] Vercel deployment config
 
 ### Auth
-- [x] `POST /api/v1/auth/sync-user` — upsert user from JWT claims
-  - Router: `app/api/auth/api.py`
-  - Service: `app/services/auth/auth_services.py`
-  - Model: `app/models/auth/auth_model.py`
+- [x] `POST /api/v1/auth/login` — Google `id_token` / Facebook token → RoomGrub JWT, user upsert
+- [x] `get_current_user`, `require_room_member`, `require_room_admin`, `require_room_non_admin`
+- [x] Redis cache-aside for user and room-access lookups, fail-open + circuit breaker
 
 ### Rooms
-- [x] `GET /api/v1/rooms` — list rooms for current user
-- [x] `POST /api/v1/rooms` — create room (atomic: create Room + add creator as Admin in UserRooms)
-- [x] `GET /api/v1/rooms/{room_id}` — home summary (total purchases, pending, recent 5 expenses)
-- [x] `GET /api/v1/rooms/{room_id}/dashboard` — member stats (purchases, pending per member)
-- [x] `DELETE /api/v1/rooms/{room_id}` — delete room (Admin, 0 unsettled guard, cascade delete)
-  - Router: `app/api/rooms/api.py`
-  - Service: `app/services/rooms/rooms_services.py`
-  - Model: `app/models/rooms/rooms_model.py`
+- [x] `GET /api/v1/rooms`, `POST /api/v1/rooms`
+- [x] `GET /api/v1/rooms/{room_id}` — summary
+- [x] `GET /api/v1/rooms/{room_id}/dashboard`
+- [x] `DELETE /api/v1/rooms/{room_id}` — Admin, unsettled-expense guard, cascade
 
 ### Expenses
-- [x] `GET /api/v1/rooms/{room_id}/expenses` — paginated, cursor-based, with filters (settled, text, user, dateFrom, dateTo)
-- [x] `POST /api/v1/rooms/{room_id}/expenses` — add expense for self
-- [x] `POST /api/v1/rooms/{room_id}/expenses/for-member` — add for another member (Admin)
-  - Router: `app/api/expenses/api.py`
-  - Service: `app/services/expenses/expenses_services.py`
-  - Model: `app/models/expenses/expenses_model.py`
+- [x] `GET /api/v1/rooms/{room_id}/expenses` — cursor pagination + filters
+- [x] `POST /api/v1/rooms/{room_id}/expenses` — with optional `participant_user_ids`
+- [x] `POST /api/v1/rooms/{room_id}/expenses/for-member` — Admin
+- [x] `GET /api/v1/rooms/{room_id}/expenses/{expense_id}` — detail with participants
+- [x] `PATCH` / `DELETE /api/v1/rooms/{room_id}/expenses/{expense_id}` — Admin
+
+### Split domain
+- [x] `SpendingSplits` and `RoomBalanceSummary` tables, backfill and backfill fixes
+- [x] `Spendings.user_id`, `Spendings.settled_at`; `balance` table dropped
+- [x] Splits and active balances written on expense add / edit / delete, in the same transaction
+- [x] `GET /api/v1/rooms/{room_id}/splits` reads active `RoomBalanceSummary` rows; suggested settlements via greedy debt simplification; `total_pending`
+- [x] `POST /api/v1/rooms/{room_id}/splits/settle-all` — server-side verification (0.01 tolerance), close and reopen balance rows
+- [x] Removed: contribute, single-member settle, filtered settle
+
+Designed but deliberately not built: the `WRITE_PRECOMPUTED_SPLITS` feature flag and shadow-mode comparison (the cutover was done directly), and a Redis `splits_cache` (reads go straight to `RoomBalanceSummary`).
 
 ### Members
-- [x] `GET /api/v1/rooms/{room_id}/members` — list with roles
-- [x] `GET /api/v1/rooms/{room_id}/members/{member_id}` — detail + pending + purchase history
-- [x] `PATCH /api/v1/rooms/{room_id}/members/{member_id}/role` — update role (Admin, can't demote self)
-- [x] `DELETE /api/v1/rooms/{room_id}/members/{member_id}` — remove (Admin, not self)
-- [x] `DELETE /api/v1/rooms/{room_id}/members/me` — exit room (non-admin only)
-- [x] `POST /api/v1/rooms/{room_id}/members/{member_id}/settle` — legacy lump-sum settle
-- [x] `POST /api/v1/rooms/{room_id}/members/{member_id}/contribute` — record contribution
-  - Router: `app/api/members/api.py`
-  - Service: `app/services/members/members_services.py`
-  - Model: `app/models/members/members_model.py`
-
-### Splits
-- [x] `GET /api/v1/rooms/{room_id}/splits` — unsettled expenses + lump-sum debits + members
-- [x] `POST /api/v1/rooms/{room_id}/splits/settle` — settle one member (Admin)
-- [x] `POST /api/v1/rooms/{room_id}/splits/settle-all` — settle all with server-side amount verification (Admin)
-  - Router: `app/api/splits/api.py`
-  - Service: `app/services/splits/splits_services.py`
-  - Model: `app/models/splits/splits_model.py`
+- [x] `GET /api/v1/rooms/{room_id}/members`, `GET .../members/{user_id}`
+- [x] `PATCH .../members/{user_id}/role` — Admin, no self-demotion
+- [x] `DELETE .../members/{user_id}` — Admin, not self, zero-balance guard
+- [x] `DELETE .../members/me` — non-admin, zero-balance guard
 
 ### Invites
-- [x] `POST /api/v1/rooms/{room_id}/invites` — create invite link (Admin, generates UUID token)
-- [x] `GET /api/v1/invites/{token}` — validate token (returns room info, daysLeft, invitedBy)
-- [x] `POST /api/v1/invites/{token}/accept` — join room (idempotent, increments Room.members)
-- [x] `POST /api/v1/invites/{token}/reject` — mark invite rejected
-  - Router: `app/api/invites/api.py`
-  - Service: `app/services/invites/invites_services.py`
-  - Model: `app/models/invites/invites_model.py`
+- [x] `POST /api/v1/rooms/{room_id}/invites` — Admin
+- [x] `GET /api/v1/invites/{token}` — public, returns inviter and `days_left`
+- [x] `POST /api/v1/invites/{token}/accept` — idempotent
+- [x] `POST /api/v1/invites/{token}/reject`
 
-## Business Logic Checks (must implement in services)
-- [x] Settle-all: server-side re-verification of pending amount per member (0.01 tolerance)
-- [x] Room delete: block if any `Spendings.settled IS NOT TRUE` in the room
-- [x] Invite accept: idempotent (already a member → return success without duplicate insert)
-- [x] Role update: prevent self-demotion from Admin
-- [x] Remove member: prevent self-removal by Admin (use `/members/me` to exit)
-- [x] Exit room: only non-Admin can exit
+### Events and push
+- [x] `app/events/publisher.py` — Redis stream `rg:emails`
+- [x] `welcome` event on first login, `expense_split` event on settle-all
+- [x] `fcm_tokens` table, `POST` / `DELETE /api/v1/notifications/fcm-token`
+- [x] `push_service.send_push` — best-effort, savepoints, dead-token pruning
+- [x] Push to participants on expense added
 
-## Tests
-- [x] `tests/test_auth.py` — sync-user, JWT expired, JWT invalid
-- [x] `tests/test_rooms.py` — create, list, summary, dashboard, delete (with settled/unsettled guard)
-- [x] `tests/test_expenses.py` — add, paginated list, filters, for-member (admin guard)
-- [x] `tests/test_members.py` — list, detail, role update, remove, exit
-- [x] `tests/test_splits.py` — get splits, settle, settle-all (amount mismatch detection)
-- [x] `tests/test_invites.py` — create, validate, accept (idempotent), reject, expired
-
-## Redis Caching (done)
-- [x] `db/redis_client.py` — Redis connection client
-- [x] `db/redis_circuit.py` — circuit breaker (fail-open on Redis errors, 30s trip)
-- [x] `app/cache/auth_cache.py` — cache-aside for `auth:user:{id}` and `access:{user_id}:{room_id}`, 7-day TTL, invalidated on membership/role writes
-
-## Explicit Expense Participants + Precomputed Splits (new domain — see docs/domain-overview.html for a visual walkthrough)
-
-Full design in the plan; PLAN.md/DOMAIN.md updated in lockstep. Not started yet — sequenced below.
-
-### Phase 0 — Schema
-- [ ] New migration `db/migrations/<ts>_add_spending_splits_and_balance_summary.sql`
-- [ ] `SpendingSplits` table (spending_id, user_id, amount_paid, amount_owed) — merged participation + computed split; `net` is computed on read, not stored
-- [ ] `RoomBalanceSummary` table (room_id, user_id, pending_amount, settled_at) — historical ledger; partial unique index `(room_id, user_id) WHERE settled_at IS NULL` allows only one active row per pair, closed rows persist as settlement history
-- [ ] `Spendings.settled_at timestamptz NULL` (additive) — replaces the `LEFT JOIN balance` used today purely for settlement-timestamp display
-- [ ] Update `app/models/rooms/rooms_model.py::delete_room_cascade` to remove `RoomBalanceSummary` rows
-
-### Phase 1 — Backfill
-- [ ] One-time backfill script/migration: populate `SpendingSplits` for existing `Spendings` (participants = current `UserRooms` members, even split)
-- [ ] Backfill `Spendings.settled_at` from existing `balance.created_at` for already-settled expenses
-- [ ] Populate one active `RoomBalanceSummary` row per (room, user) from backfilled splits + legacy `balance` adjustments (`spending_id IS NULL`)
-- [ ] Spot-check backfilled active-row `pending_amount` against live `get_member_balances` output (within `TOLERANCE`)
-
-### Phase 2 — Write path (shadow mode) + contribute removal
-- [ ] `app/models/splits/splits_model.py` — `upsert_spending_splits`, `delete_spending_splits`, `get_active_room_balance`, `upsert_active_balance`, `close_and_reopen_balance`
-- [ ] `app/services/splits/splits_write_services.py` (new) — `compute_and_write_splits`
-- [ ] `app/api/expenses/schemas.py` — add optional `participant_user_ids: list[int] | None`
-- [ ] `app/services/expenses/expenses_services.py` — write splits on add/edit/remove expense (same transaction); set `Spendings.settled_at` when settling
-- [ ] Feature flag `WRITE_PRECOMPUTED_SPLITS` in `db/config.py`
-- [ ] Shadow-mode logging: compare active `RoomBalanceSummary` row vs live `get_member_balances` on every settle check
-- [ ] **Remove the "contribute" feature entirely** — no replacement: `POST /{room_id}/members/{user_id}/contribute` route (`app/api/members/api.py`), `ContributeRequest` schema, `members_services.record_contribution`, `members_model.insert_balance_credit`, and its tests in `tests/e2e/test_members.py`
-
-### Phase 3 — Cache-aside reads + settlement close/reopen
-- [ ] `app/cache/splits_cache.py` (new, mirrors `auth_cache.py`) — key `splits:room:{room_id}`, reuse `db/redis_circuit.py`
-- [ ] Cut `GET /api/v1/rooms/{room_id}/splits` over to read the active `RoomBalanceSummary` row per member (cache-aside), compute pairwise pay-to/pay-from via greedy debt-simplification at read time
-- [ ] Wire full settle (`settle_member_balance`/`settle_all_room`) to call `close_and_reopen_balance` (stamp `settled_at`, open a fresh zeroed active row) instead of writing to `balance`
-- [ ] Wire partial/filtered settle (`settle_filtered_room`) to update the active row in place (not a close-out event)
-- [ ] Add settlement-history read endpoint (closed `RoomBalanceSummary` rows for a member, most recent first)
-- [ ] Cache invalidation on every balance-changing write
-
-### Phase 4 — API surface
-- [ ] `GET /api/v1/rooms/{room_id}/expenses/{expense_id}/participants`
-
-### Phase 5 — Cutover, `balance` removal & deprecation
-- [ ] Burn-in period with zero material shadow-mode discrepancies
-- [ ] Remove `get_member_balances`, `get_pending_for_user`, `get_pending_for_user_filtered`, `get_filtered_unsettled_expenses`
-- [ ] Rewire settle `TOLERANCE` check to compare against active `RoomBalanceSummary` row only
-- [ ] Switch `expenses_model.py` / `rooms_model.py::get_recent_expenses` from `LEFT JOIN balance` to `Spendings.settled_at`
-- [ ] Confirm zero remaining references to `balance` (grep), then drop the `balance` table in a final migration
-
-## Documentation
-- [x] `docs/DOMAIN.md` — entities, business rules, relationships
-- [x] `docs/ARCHITECTURE.md` — system design, actual project structure, API surface
-- [x] `docs/AUTH.md` — JWT verification, user sync, role guards
-- [x] `docs/PLAN.md` — phased migration plan
-- [x] `docs/TODOS.md` — this file
-- [x] `docs/SETUP.md` — local dev setup guide
-- [x] `README.md` — top-level overview
-- [x] `CLAUDE.md` — agent instructions for Claude Code
-- [x] `AGENTS.md` — architecture patterns and conventions for AI agents
+### Tests
+- [x] `tests/e2e/` — auth, rooms, expenses, members, splits, invites (transaction-per-test against the test-db container, in-memory fake Redis)
+- [x] `tests/unit/` — `test_auth_providers.py`, `test_push_service.py`

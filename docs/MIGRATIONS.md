@@ -52,12 +52,35 @@ dbmate new add_some_column
 # then apply to Supabase dev / prod the same way once verified, if applicable
 ```
 
+## After applying a migration
+
+- Update `docs/DOMAIN.md` if tables or columns changed, and add the migration to the history table below.
+- Add a `CHANGELOG.md` entry.
+- `db/schema.sql` is a committed schema dump. It is currently stale (see `docs/TODOS.md`); don't treat it as the source of truth — the migrations are.
+
+## Migration history
+
+| Version | File | What it does |
+|---------|------|--------------|
+| `20260715161501` | `baseline_schema` | Schema as it existed in Supabase dev when dbmate was adopted |
+| `20260718165615` | `fold_settlements_into_spendings` | Adds `Spendings.user_id` and `Spendings.settled_at`, backfills them, drops `balance` |
+| `20260722120000` | `add_spending_splits_and_balance_summary` | Creates `SpendingSplits` and `RoomBalanceSummary`, backfills both |
+| `20260724120000` | `fix_room_balance_summary_backfill` | Recomputes balances the previous backfill missed (`settled IS NULL` expenses). Data only; no-op down |
+| `20260724130000` | `rebuild_room_balance_from_pending` | Wipes and rebuilds splits and balances from unsettled expenses, always including the payer. Data only |
+| `20260903083333` | `replace_push_subscriptions_with_fcm_tokens` | Drops `push_subscriptions`, creates `fcm_tokens` |
+
+Two of these are destructive on the way up and only best-effort on the way down: `20260718165615` discards lump-sum `balance` rows, and `20260903083333` discards all Web Push subscriptions.
+
 ## Baseline migration
 
 `db/migrations/20260715161501_baseline_schema.sql` captures the schema as it
 existed in the dev Supabase project at the time dbmate was adopted (all 9
 tables: `Invite`, `Users`, `Rooms`, `SpendingParticipants`, `Spendings`,
 `UserRooms`, `balance`, `notifications`, `push_subscriptions`).
+
+That list is a snapshot of the starting point, not the current schema — `balance`
+and `push_subscriptions` have since been dropped and `SpendingSplits`,
+`RoomBalanceSummary` and `fcm_tokens` added by the migrations above.
 
 It deliberately excludes Supabase's Row Level Security policies and grants to
 `authenticated`/`anon`/`service_role` — those are a Supabase platform feature

@@ -1,6 +1,6 @@
 [project]
 name = "RoomGrub-backend"
-version = "0.0.1"
+version = "1.2.0"
 description = "Expense splitter app for friends and family groups"
 authors = [
   {name = "Sankar Swain", email = "s.sankar@broccly.in"}

@@ -48,9 +48,9 @@ Keep request models and response models clearly separated in `schemas.py`.
 One function per query. Use `text()` with named bound parameters only — no f-strings, no ORM.
 
 ### 6. Business logic goes in `<domain>_services.py`
-Role checks, guards, and calculations live here. Services raise plain exceptions; routers catch and convert to `HTTPException`.
+Role checks, guards, and calculations live here. Services raise plain exceptions; routers catch and convert to `HTTPException`. (Older services still raise `HTTPException` directly — do not copy that; see `docs/TODOS.md`.)
 
 ### 7. Reference
 - See `AGENTS.md` for the full pattern guide
-- See `docs/TODOS.md` for the checklist of endpoints still to implement
+- See `docs/TODOS.md` for open work
 - See `docs/DOMAIN.md` for table names, column names, and business rules

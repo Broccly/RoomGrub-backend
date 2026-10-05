@@ -278,11 +278,10 @@
     <div class="sub">Domain overview</div>
     <a href="#map">Entity map</a>
     <a href="#core">Core entities</a>
-    <a href="#legacy">Legacy ledger</a>
-    <a href="#new">New domain</a>
+    <a href="#new">Splits &amp; balances</a>
     <a href="#flow">Write &amp; read flow</a>
     <a href="#settlement">Settlement history</a>
-    <a href="#rollout">Rollout phases</a>
+    <a href="#legacy">What it replaced</a>
   </nav>
 
   <main>
@@ -290,17 +289,16 @@
       <div class="eyebrow">Backend · Data model</div>
       <h1>How an expense becomes a settled balance</h1>
       <p class="lede">
-        RoomGrub splits shared expenses across roommates. This page walks through every table involved —
-        what's live in production today, what's being phased out, and the new participant-aware,
-        precomputed-balance domain replacing it.
+        RoomGrub splits shared expenses across roommates. This page walks through every table involved
+        in turning a purchase into a running balance, and a balance into a settlement record.
       </p>
     </header>
 
     <section id="map">
       <h2>Entity map</h2>
       <p class="section-intro">
-        Solid green edges are the new domain rolling out; dashed rust edges are <code>balance</code> and the
-        contribute path, both being removed once nothing reads them.
+        Every expense fans out into one split row per participant, and each split shifts that member's
+        running balance in the room.
       </p>
       <div class="diagram-wrap">
 ```mermaid
@@ -313,13 +311,12 @@ erDiagram
     USERS ||--o{ SPENDINGSPLITS : participates
     ROOMS ||--o{ ROOMBALANCESUMMARY : "net position in"
     USERS ||--o{ ROOMBALANCESUMMARY : "owes / is owed"
-    SPENDINGS ||--o{ BALANCE : "legacy settle"
-    ROOMS ||--o{ BALANCE : "legacy ledger"
 
     SPENDINGS {
+        int user_id "payer"
         int money
         bool settled
-        timestamp settled_at "new, additive"
+        timestamp settled_at
     }
     SPENDINGSPLITS {
         decimal amount_paid
@@ -329,35 +326,30 @@ erDiagram
         decimal pending_amount
         timestamp settled_at "null = active row"
     }
-    BALANCE {
-        decimal amount
-        string status
-    }
 ```
       </div>
     </section>
 
     <section id="core">
-      <h2>Core entities (unchanged)</h2>
-      <p class="section-intro">Membership and identity — untouched by this migration.</p>
+      <h2>Core entities</h2>
+      <p class="section-intro">Identity, membership and the expense itself.</p>
       <div class="cards">
         <div class="card">
           <div class="card-head"><h3>Users</h3></div>
-          <p class="desc">Registered person, authenticated via Supabase / Google OAuth.</p>
+          <p class="desc">Registered person, created on first Google or Facebook login.</p>
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">id</td><td class="note">PK</td></tr>
-            <tr><td class="field">email</td><td class="note">unique, used as FK by legacy tables</td></tr>
+            <tr><td class="field">email</td><td class="note">unique; still stored on Spendings as the payer's email</td></tr>
             <tr><td class="field">name</td><td class="note"></td></tr>
           </table>
         </div>
         <div class="card">
           <div class="card-head"><h3>Rooms</h3></div>
-          <p class="desc">A shared household.</p>
+          <p class="desc">A shared household. Member count and admin are derived from UserRooms, not stored.</p>
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">id</td><td class="note">PK</td></tr>
-            <tr><td class="field">admin</td><td class="note">email of creator</td></tr>
           </table>
         </div>
         <div class="card">
@@ -372,49 +364,27 @@ erDiagram
         </div>
         <div class="card">
           <div class="card-head"><h3>Spendings</h3></div>
-          <p class="desc">A purchase entry. Gains one additive column below.</p>
+          <p class="desc">A purchase entry paid by one member.</p>
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
+            <tr><td class="field">user_id</td><td class="note">→ Users.id, the payer</td></tr>
             <tr><td class="field">money</td><td class="note">amount spent</td></tr>
             <tr><td class="field">settled</td><td class="note">null/false = pending</td></tr>
-            <tr><td class="field">settled_at</td><td class="note">new — replaces balance-join for display</td></tr>
+            <tr><td class="field">settled_at</td><td class="note">stamped by settle-all</td></tr>
           </table>
-        </div>
-      </div>
-    </section>
-
-    <section id="legacy">
-      <h2>Legacy ledger <span class="tag deprecated">being removed</span></h2>
-      <p class="section-intro">
-        Every split is computed live, every read, dividing evenly across <em>all current room members</em> —
-        there's no record of who actually participated in a given expense.
-      </p>
-      <div class="cards">
-        <div class="card deprecated">
-          <div class="card-head"><h3>balance</h3><span class="tag deprecated">dropped in Phase 5</span></div>
-          <p class="desc">Settlement + contribution ledger. One row per adjustment, consumed/deleted as settlements happen — no history survives.</p>
-          <table class="schema">
-            <tr><th>Field</th><th>Note</th></tr>
-            <tr><td class="field">amount</td><td class="note">+credit (contribute) / −debit (settle)</td></tr>
-            <tr><td class="field">spending_id</td><td class="note">null = lump-sum legacy adjustment</td></tr>
-          </table>
-        </div>
-        <div class="card deprecated">
-          <div class="card-head"><h3>"Contribute"</h3><span class="tag deprecated">removed, no replacement</span></div>
-          <p class="desc">A member could add money to the room without an expense. Route, schema, service, and model function are deleted outright in Phase 2 — this capability is not carried forward.</p>
         </div>
       </div>
     </section>
 
     <section id="new">
-      <h2>New domain <span class="tag new">rolling out</span></h2>
+      <h2>Splits &amp; balances</h2>
       <p class="section-intro">
         Participants are chosen explicitly per expense. The split and running balance are computed once,
         at write time — reads become a single indexed lookup instead of a live aggregation.
       </p>
       <div class="cards">
         <div class="card new">
-          <div class="card-head"><h3>SpendingSplits</h3><span class="tag new">new</span></div>
+          <div class="card-head"><h3>SpendingSplits</h3></div>
           <p class="desc">One row per participant per expense. A row's existence <em>is</em> the participation record — <code>net</code> isn't stored, just computed as <code>amount_paid − amount_owed</code>.</p>
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
@@ -425,8 +395,8 @@ erDiagram
           </table>
         </div>
         <div class="card new">
-          <div class="card-head"><h3>RoomBalanceSummary</h3><span class="tag new">new</span></div>
-          <p class="desc">A historical ledger, not a snapshot: one <strong>active</strong> row per member per room, plus any number of <strong>closed</strong> rows from past full settlements.</p>
+          <div class="card-head"><h3>RoomBalanceSummary</h3></div>
+          <p class="desc">A historical ledger, not a snapshot: one <strong>active</strong> row per member per room, plus any number of <strong>closed</strong> rows from past settle-alls.</p>
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">room_id, user_id</td><td class="note">at most one active row per pair</td></tr>
@@ -443,7 +413,7 @@ erDiagram
       <div class="flow">
         <div class="step">
           <h4>Add expense</h4>
-          <p>Payer picks participants explicitly (or none → defaults to all current room members, matching legacy behavior).</p>
+          <p>Payer picks participants explicitly (or none → defaults to all current room members).</p>
         </div>
         <div class="step">
           <h4>Compute split</h4>
@@ -451,11 +421,11 @@ erDiagram
         </div>
         <div class="step">
           <h4>Update balance</h4>
-          <p>Each affected member's <em>active</em> <code>RoomBalanceSummary</code> row shifts by their share — no full-room recompute.</p>
+          <p>Each affected member's <em>active</em> <code>RoomBalanceSummary</code> row shifts by their share — no full-room recompute. The other participants then get a push notification.</p>
         </div>
         <div class="step">
-          <h4>Read (cached)</h4>
-          <p>Redis cache-aside in front of the active rows. Miss → one indexed query, not a live aggregation.</p>
+          <h4>Read</h4>
+          <p><code>GET /splits</code> reads the active rows straight from Postgres — one indexed query, not a live aggregation.</p>
         </div>
         <div class="step">
           <h4>Who pays whom</h4>
@@ -467,54 +437,39 @@ erDiagram
     <section id="settlement">
       <h2>Settlement, as history</h2>
       <p class="section-intro">
-        The old ledger deleted its adjustment rows as it consumed them — there was never a record of past settlements.
-        The new active/closed-row model fixes that.
+        Settling never deletes anything — the balance row that was live becomes the record of the settlement.
       </p>
       <div class="callout">
-        <strong>Full settle</strong> (one member, or settle-all): the active row is stamped <code>settled_at = now()</code>
-        and frozen in place as a permanent record — "this much was owed, settled at this time." A brand-new active row
-        opens at <code>pending_amount = 0</code>. Members can page back through their closed rows to see every past settlement.
+        <strong>Settle-all</strong> (admin, whole room): the server first checks the balances the client is showing
+        against its own, within 0.01. Then every active row is stamped <code>settled_at = now()</code> and frozen in place
+        as a permanent record — "this much was owed, settled at this time." A brand-new active row opens at
+        <code>pending_amount = 0</code> for each current member, and the room's unsettled expenses are marked settled.
       </div>
       <br />
       <div class="callout">
-        <strong>Partial / filtered settle</strong> only updates the active row's <code>pending_amount</code> in place —
-        it's not a close-out event, since the balance isn't fully zeroed.
+        Settlement is all-or-nothing per room: there is no single-member or partial settle. The closed rows are
+        stored, but no endpoint lists them yet.
       </div>
     </section>
 
-    <section id="rollout">
-      <h2>Rollout phases</h2>
-      <p class="section-intro">Additive schema first, dual-write in shadow mode, then cache-aside reads, then cut the old path loose.</p>
-      <div class="timeline">
-        <div class="phase">
-          <div class="num">Phase 0</div>
-          <h4>Schema</h4>
-          <p>Add SpendingSplits, RoomBalanceSummary, Spendings.settled_at. Nothing existing altered.</p>
+    <section id="legacy">
+      <h2>What it replaced <span class="tag deprecated">removed</span></h2>
+      <p class="section-intro">
+        Before July 2026 every split was computed live, on every read, dividing evenly across
+        <em>all current room members</em> — there was no record of who actually took part in an expense.
+      </p>
+      <div class="cards">
+        <div class="card deprecated">
+          <div class="card-head"><h3>balance</h3><span class="tag deprecated">dropped</span></div>
+          <p class="desc">Settlement + contribution ledger. Rows were consumed and deleted as settlements happened, so no history survived. Dropped in migration <code>20260718165615</code>.</p>
         </div>
-        <div class="phase">
-          <div class="num">Phase 1</div>
-          <h4>Backfill</h4>
-          <p>Legacy expenses get participants = current room members, even split. Spot-checked against live totals.</p>
+        <div class="card deprecated">
+          <div class="card-head"><h3>"Contribute"</h3><span class="tag deprecated">removed, no replacement</span></div>
+          <p class="desc">A member could add money to the room without an expense. Not carried forward.</p>
         </div>
-        <div class="phase">
-          <div class="num">Phase 2</div>
-          <h4>Shadow write</h4>
-          <p>New tables written alongside old reads. Contribute feature removed outright.</p>
-        </div>
-        <div class="phase">
-          <div class="num">Phase 3</div>
-          <h4>Cache-aside reads</h4>
-          <p>GET /splits cuts over to RoomBalanceSummary + Redis. Settle wired to close/reopen.</p>
-        </div>
-        <div class="phase">
-          <div class="num">Phase 4</div>
-          <h4>API surface</h4>
-          <p>Expose per-expense participant/split detail endpoint.</p>
-        </div>
-        <div class="phase">
-          <div class="num">Phase 5</div>
-          <h4>Cutover</h4>
-          <p>Old live-aggregation code deleted. balance table dropped once reference-free.</p>
+        <div class="card deprecated">
+          <div class="card-head"><h3>Single-member &amp; filtered settle</h3><span class="tag deprecated">removed</span></div>
+          <p class="desc">Settling one member, a date range or a subset of members. Only settle-all remains.</p>
         </div>
       </div>
     </section>

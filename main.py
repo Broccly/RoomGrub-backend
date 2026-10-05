@@ -13,7 +13,7 @@ from app.api.invites.api import router as invites_router
 from app.api.notifications.api import router as notifications_router
 from app.api.notifications.api import push_router
 
-app = FastAPI(title="RoomGrub API", version="0.1.0")
+app = FastAPI(title="RoomGrub API", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,

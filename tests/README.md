@@ -1,6 +1,17 @@
 # Running the test suite
 
-Tests run against a local, disposable Docker Postgres — never against the live
+```bash
+pytest -v              # everything
+pytest tests/unit      # unit tests only — no database needed
+pytest tests/e2e       # API tests
+```
+
+## Layout
+
+- `tests/e2e/` — API tests through FastAPI's `TestClient`, one file per domain, against a real Postgres.
+- `tests/unit/` — pure unit tests with external calls monkeypatched: `test_auth_providers.py` (Google token verification) and `test_push_service.py` (FCM send, dead-token pruning, never-raises).
+
+The e2e tests run against a local, disposable Docker Postgres — never against the live
 Supabase database in `.env`.
 
 ## One-time setup
@@ -25,18 +36,34 @@ back on teardown (`conn` fixture in `tests/e2e/conftest.py`). No test writes
 persist — no manual cleanup needed, and tests can run in any order without
 interfering with each other.
 
+## Redis
+
+`test_client` overrides `redis_conn` with an in-memory `FakeRedis` (`tests/e2e/conftest.py`)
+that supports `get` / `setex` / `delete` for the auth cache and `xadd` for events. No live
+Redis is needed. Request the `fake_redis` fixture to assert on published events —
+`fake_redis.streams["rg:emails"]` holds every entry published during the test.
+
+## Push
+
+`FIREBASE_CREDENTIALS_JSON` is not needed. e2e tests that cover push monkeypatch
+`send_push`; `tests/unit/test_push_service.py` fakes the Firebase client.
+
 ## Fixtures
 
 - `make_user(email, name=None, profile=None)` — upserts a `Users` row.
 - `make_room(admin_user)` — creates a room with `admin_user` as Admin.
 - `add_member(room_id, user, role="Member")` — adds a user to a room.
-- `make_expense(room_id, user_email, money=10.0, material="test item")` — inserts an expense.
-- `auth_headers(user)` — builds a Bearer token for a user dict (must include `id`, `email`).
+- `make_expense(room_id, user_email, money=10.0, material="test item")` — inserts an expense, splits it evenly across the room's current members, and updates their balances.
+- `auth_headers(user)` — builds a Bearer token for a user dict (must include `id`, `email`). A plain function, imported from `conftest`, not a fixture.
+- `fake_redis` — the in-memory Redis the app is using for this test.
 
 ## Notifications
 
-The notifications router exists in `app/api/notifications/` but is **not mounted**
-in `main.py` (see the comment there). Its test file is left as pre-existing,
-unmodified coverage — the "unauthenticated" assertions there check for `401` but
-actually receive `404` since the routes don't exist in the running app; this is a
-known, pre-existing gap, not something introduced by this test suite.
+`main.py` mounts only the push router (`POST` / `DELETE /api/v1/notifications/fcm-token`).
+The room-scoped activity-log router (`/api/v1/rooms/{room_id}/notifications`) exists in
+`app/api/notifications/` but is **not mounted**.
+
+`tests/e2e/test_notifications.py` predates both facts: it targets the unmounted
+activity-log routes and the removed `/push-subscriptions` routes, so it does not reflect
+the running app. Rewriting it against the `fcm-token` endpoints is tracked in
+`docs/TODOS.md`.

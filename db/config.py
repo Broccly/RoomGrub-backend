@@ -42,8 +42,11 @@ def get_db_max_overflow():
 def get_jwt_secret():
   return os.environ["JWT_SECRET"]
 
-def get_jwt_expiry_hours() -> int:
-  return int(os.environ.get("JWT_EXPIRY_HOURS", "24"))
+def get_jwt_access_expiry_minutes() -> int:
+  return int(os.environ.get("JWT_ACCESS_EXPIRY_MINUTES", "15"))
+
+def get_refresh_token_expiry_days() -> int:
+  return int(os.environ.get("REFRESH_TOKEN_EXPIRY_DAYS", "90"))
 
 def get_redis_url():
   return os.environ["REDIS_URL"]

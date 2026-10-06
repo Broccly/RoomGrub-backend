@@ -16,7 +16,7 @@ Standalone **Python FastAPI** backend for RoomGrub — a shared-expense tracker 
 - **FastAPI** — REST API framework
 - **PostgreSQL** (Supabase-hosted in dev/prod; local Docker Postgres for local dev/test) — schema managed via [dbmate](https://github.com/amacneil/dbmate) migrations
 - **Raw SQL** — all DB queries are parameterized SQL, no ORM
-- **Auth** — Google / Facebook token exchanged at login for an app-issued JWT, verified on every request
+- **Auth** — Google / Facebook token exchanged at login for an app-issued short-lived access JWT (verified on every request) plus a rotating refresh token, so devices stay signed in
 - **Redis (Upstash)** — cache-aside layer for auth/room-access checks (fails open to Postgres if unreachable) and the `rg:emails` event stream
 - **Firebase Cloud Messaging** — push notifications (optional; disabled when unconfigured)
 - **Pydantic v2** — request/response validation
@@ -85,7 +85,7 @@ Making a schema change from here on? See [docs/MIGRATIONS.md](docs/MIGRATIONS.md
 |-----|---------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, project structure, API surface |
 | [docs/DOMAIN.md](docs/DOMAIN.md) | Entity model, business rules, relationships |
-| [docs/AUTH.md](docs/AUTH.md) | Login, JWT, role guards |
+| [docs/AUTH.md](docs/AUTH.md) | Login, access + refresh tokens, role guards |
 | [docs/SETUP.md](docs/SETUP.md) | Env var reference, Google / Redis / Firebase setup |
 | [docs/PLAN.md](docs/PLAN.md) | Project status by phase, what's next |
 | [docs/TODOS.md](docs/TODOS.md) | Open work and shipped checklist |

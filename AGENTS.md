@@ -14,7 +14,7 @@ Read these before working on any feature:
 |-----|----------------|
 | `docs/DOMAIN.md` | All entities (Users, Rooms, Spendings, SpendingSplits, RoomBalanceSummary, Invite, ...), field definitions, business rules |
 | `docs/ARCHITECTURE.md` | System design, project structure, full API surface, caching, events, push |
-| `docs/AUTH.md` | Login flow, RoomGrub JWT, role guard patterns |
+| `docs/AUTH.md` | Login flow, access + refresh tokens, role guard patterns |
 | `docs/SETUP.md` | Env var reference, external services (Google, Redis, Firebase) |
 | `docs/MIGRATIONS.md` | Writing and applying dbmate migrations |
 | `docs/PLAN.md` | Project status by phase — what's done, what's next |
@@ -120,7 +120,9 @@ Schema changes are dbmate migrations in `db/migrations/` — see `docs/MIGRATION
 
 ## Authentication
 
-- `POST /api/v1/auth/login` exchanges a Google/Facebook token for a RoomGrub JWT. There is no Supabase Auth.
+- `POST /api/v1/auth/login` exchanges a Google/Facebook token for a short-lived RoomGrub access JWT plus a rotating refresh token. There is no Supabase Auth.
+- `POST /api/v1/auth/refresh` trades a refresh token for a new pair; `POST /api/v1/auth/logout` revokes the device's session. Refresh tokens are opaque, single-use and stored hashed in `refresh_tokens`.
+- `refresh_endpoint` returns its 401 as a `JSONResponse` instead of raising, so the reuse-detection revoke is committed rather than rolled back by `db_conn()`. Keep it that way.
 - Every protected route depends on `get_current_user` from `app/dependencies/current_user.py`, which verifies the JWT and returns the user as a dict (`id`, `email`, `name`, `profile`).
 - Room-scoped routes depend on a guard from `app/dependencies/room_access.py` instead: `require_room_member`, `require_room_admin` or `require_room_non_admin`. Each returns `{"id", "role", "user"}`; pass `membership["user"]` to the service.
 - Auth is declared per route — routers are included in `main.py` without global dependencies.
@@ -223,6 +225,9 @@ These rules **must** keep holding. Full detail in `docs/DOMAIN.md`.
 | Settle-all: re-verify client-sent balances server-side (0.01 tolerance) | `splits_services.settle_all` |
 | Invite accept is idempotent — already a member → success, no duplicate | `invites_services.accept_invite` |
 | Invite expires after 7 days | checked at validate and accept time in `invites_services` |
+| Refresh tokens are stored only as SHA-256 hashes, in Postgres — never raw, never in Redis | `auth_model` / `auth_services` |
+| A refresh token is single-use; replaying a spent one outside the 30 s grace window revokes its whole family, and that revoke must commit even though the response is 401 | `auth_services.refresh` + `refresh_endpoint` |
+| Refresh tokens never authenticate API calls — only the access JWT does | `get_current_user` |
 
 ---
 

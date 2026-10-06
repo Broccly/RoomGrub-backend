@@ -26,6 +26,9 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Events are published before the request's transaction commits; a later rollback would leave a `welcome` / `expense_split` event for something that didn't happen.
 
 ### Features not built yet
+- [ ] `POST /auth/logout-all` — sign out every device of a user (revoke all their refresh-token families).
+- [ ] A per-device label on `refresh_tokens` rows so a user can see and end individual sessions.
+- [ ] Scheduled cleanup of `refresh_tokens`: dead rows are only deleted when their user logs in again, so rows of users who never return stay until the user is deleted.
 - [ ] Settlement-history endpoint — list a member's closed `RoomBalanceSummary` rows, most recent first. The data is already being recorded.
 - [ ] Activity log: decide whether to mount `notifications_router` (currently commented out in `main.py`) and have expense / member / settle actions write to it, or delete the router, service, model and table.
 - [ ] Push for more than "expense added": settle-all, member joined, member removed.
@@ -36,7 +39,9 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 
 ### Clients
 - [ ] Web (Next.js): replace remaining Server Actions with calls to this API; send the RoomGrub JWT.
+- [ ] Web (Next.js): keep the refresh token in an httpOnly cookie owned by the Next.js server, refresh on `401 Token expired`, single-flight the refresh, sign out only when `/auth/refresh` returns 401.
 - [ ] Android: register / unregister the FCM token around login / logout; handle `expense_added` push payloads.
+- [ ] Android: store the refresh token in Keystore-backed storage, refresh on `401 Token expired` and retry once, single-flight the refresh, call `/auth/logout` on logout, sign out only when `/auth/refresh` returns 401.
 - [ ] Email consumer for the `rg:emails` stream lives outside this repo — document its contract there and link it from ARCHITECTURE.md.
 
 ---
@@ -56,6 +61,8 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [x] `POST /api/v1/auth/login` — Google `id_token` / Facebook token → RoomGrub JWT, user upsert
 - [x] `get_current_user`, `require_room_member`, `require_room_admin`, `require_room_non_admin`
 - [x] Redis cache-aside for user and room-access lookups, fail-open + circuit breaker
+- [x] Access + refresh tokens: 15-minute access JWT, rotating hashed refresh tokens in `refresh_tokens`, sliding 90-day idle window, 30-second grace window, reuse detection per device
+- [x] `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`
 
 ### Rooms
 - [x] `GET /api/v1/rooms`, `POST /api/v1/rooms`

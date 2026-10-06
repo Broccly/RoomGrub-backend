@@ -43,7 +43,7 @@ This is a standalone **Python FastAPI** backend extracted from the RoomGrub Next
 | DB Connection | SQLAlchemy engine (sync)            | Connection pooling only — no ORM used        |
 | DB            | PostgreSQL (Supabase-hosted; local Docker for dev/test) | Existing data stays where it is |
 | Migrations    | [dbmate](https://github.com/amacneil/dbmate) | Plain versioned SQL files, same tool for every environment |
-| Auth          | Google / Facebook token verification + app-issued HS256 JWT (`PyJWT`, `google-auth`) | No dependency on Supabase Auth |
+| Auth          | Google / Facebook token verification + app-issued HS256 access JWT (`PyJWT`, `google-auth`); rotating refresh tokens in Postgres | No dependency on Supabase Auth |
 | Cache         | Redis (Upstash)                     | Cache-aside for auth/room-access reads, fail-open with circuit breaker |
 | Events        | Redis stream (`rg:emails`)          | Decouples email sending from the request path |
 | Push Notifs   | Firebase Cloud Messaging (`firebase-admin`) | One sender for the Android app          |
@@ -78,7 +78,7 @@ RoomGrub-backend/
 │   │   Extra:   services/notifications/push_service.py — FCM sender
 │   │
 │   ├── dependencies/             # FastAPI dependency injection
-│   │   ├── current_user.py       # get_current_user — verify RoomGrub JWT, load user
+│   │   ├── current_user.py       # get_current_user — verify the access JWT, load user
 │   │   └── room_access.py        # require_room_member / _admin / _non_admin
 │   │
 │   ├── cache/
@@ -89,7 +89,7 @@ RoomGrub-backend/
 │   │
 │   └── utils/
 │       ├── auth_providers.py     # Google / Facebook token verification
-│       └── jwt_utils.py          # create_jwt
+│       └── jwt_utils.py          # create_jwt (access token), refresh-token generation and hashing
 │
 ├── db/
 │   ├── config.py                 # Per-variable env getter functions + validate_env()
@@ -105,7 +105,7 @@ RoomGrub-backend/
 │
 ├── docs/
 │   ├── ARCHITECTURE.md           # This file
-│   ├── AUTH.md                   # Login, JWT, role guards
+│   ├── AUTH.md                   # Login, access + refresh tokens, role guards
 │   ├── DOMAIN.md                 # Entity model & business rules
 │   ├── SETUP.md                  # Env vars and external services
 │   ├── MIGRATIONS.md             # Writing and applying dbmate migrations
@@ -127,7 +127,9 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Auth
 | Method | Path                  | Access | Description                                        |
 |--------|-----------------------|--------|----------------------------------------------------|
-| POST   | `/api/v1/auth/login`  | Public | Exchange a Google/Facebook token for a RoomGrub JWT; upserts the user |
+| POST   | `/api/v1/auth/login`  | Public | Exchange a Google/Facebook token for a RoomGrub access token and refresh token; upserts the user |
+| POST   | `/api/v1/auth/refresh` | Public | Trade a refresh token for a new access + refresh token pair (rotation) |
+| POST   | `/api/v1/auth/logout`  | Public | Revoke the device's refresh tokens; 204 |
 
 ### Rooms
 | Method | Path                                | Access | Description                                       |
@@ -196,9 +198,13 @@ The room-scoped activity-log router exists in `app/api/notifications/api.py` but
 
 1. Client signs in with Google or Facebook and receives a provider token.
 2. Client calls `POST /api/v1/auth/login` with `{provider, token}`.
-3. The backend verifies the token with the provider, upserts the `Users` row, and returns a **RoomGrub JWT** (HS256, signed with `JWT_SECRET`, `sub` = user id).
-4. Client sends `Authorization: Bearer <token>` on every other request.
+3. The backend verifies the token with the provider, upserts the `Users` row, and returns a short-lived **access token** (HS256 JWT, signed with `JWT_SECRET`, `sub` = user id) and a long-lived **refresh token** (opaque, stored hashed in `refresh_tokens`).
+4. Client sends `Authorization: Bearer <access_token>` on every other request.
 5. `get_current_user` verifies the JWT and loads the user (Redis first, then Postgres). Room-scoped routes add `require_room_member` / `require_room_admin` / `require_room_non_admin`.
+6. When the access token expires (`401 Token expired`), the client calls `POST /api/v1/auth/refresh` with its refresh token and gets a new pair. The old refresh token is spent; replaying it revokes that device's session.
+7. `POST /api/v1/auth/logout` revokes the device's refresh tokens.
+
+A device therefore stays signed in until the user logs out, it sits idle past `REFRESH_TOKEN_EXPIRY_DAYS`, or its refresh token is revoked.
 
 See `AUTH.md` for full details.
 
@@ -272,7 +278,8 @@ The Android app uses native HTTP and is not subject to CORS.
 ## Key Design Decisions
 
 - **Supabase is only the Postgres host** — no data migration was required, but Supabase Auth, RLS and client SDKs are not used. All access control is enforced in this service.
-- **The backend issues its own JWTs** — provider tokens (Google/Facebook) are verified once at login; every other request carries a RoomGrub JWT.
+- **The backend issues its own tokens** — provider tokens (Google/Facebook) are verified once at login; every other request carries a RoomGrub access JWT.
+- **Stateless access, stateful refresh** — access tokens are short-lived JWTs verified by signature alone; refresh tokens are opaque, single-use, stored hashed in Postgres and revocable. They are deliberately not in Redis, which is fail-open — an outage must not sign every device out.
 - **Raw SQL only** — all queries are parameterized SQL strings in `app/models/`. No SQLAlchemy ORM model classes. SQLAlchemy engine is used only for connection pooling via `db/engine.py`.
 - **Sync SQLAlchemy** — using synchronous connections. No async DB layer.
 - **One transaction per request** — `db_conn()` commits on success and rolls back on error; code never commits manually.

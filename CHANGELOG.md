@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Added
+
+- Refresh tokens, so a signed-in device is no longer signed out when its access token expires. `POST /auth/login` now also returns `refresh_token` and `expires_in`; each login starts its own session ("family"), one per device (`app/services/auth/auth_services.py`)
+- `POST /api/v1/auth/refresh` — trades a refresh token for a new access + refresh token pair. Tokens are single-use and rotate on every call, each new one with a fresh `REFRESH_TOKEN_EXPIRY_DAYS` lifetime (sliding idle window). Replaying a spent token more than 30 seconds after it was used revokes that device's whole session; unknown, expired, revoked and replayed tokens all answer `401 Invalid refresh token`
+- `POST /api/v1/auth/logout` — revokes the session the given refresh token belongs to; always 204
+- `refresh_tokens` table (migration `20261005120000`): one row per issued token, storing only its SHA-256 hash, with `ON DELETE CASCADE` from `Users`. A user's expired and revoked rows are deleted at their next login
+- `REFRESH_TOKEN_EXPIRY_DAYS` env var (default 90)
+- e2e coverage for rotation, the grace window, reuse detection, expiry, logout and cleanup (`tests/e2e/test_auth.py`)
+
+### Changed
+
+- **Access tokens now live 15 minutes instead of 24 hours.** `JWT_ACCESS_EXPIRY_MINUTES` (default 15) replaces `JWT_EXPIRY_HOURS`, which is no longer read. Clients must call `/auth/refresh` on `401 Token expired`; a client that does not will be signed out every 15 minutes
+- Docs rewritten around the two-token flow: `AUTH.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `SETUP.md`, `MIGRATIONS.md`, `AGENTS.md`, `README.md`, `tests/README.md`, `PLAN.md`, `TODOS.md`
 
 ## [1.2.0] - 2026-09-19
 ### Added

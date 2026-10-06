@@ -10,7 +10,7 @@ For a visual walkthrough of the expense → split → balance flow, open [domain
 
 ## Core Entities
 
-Table names are case-sensitive in Postgres — mixed-case names must be double-quoted in SQL (`"Users"`, `"Rooms"`, `"UserRooms"`, `"Spendings"`, `"SpendingSplits"`, `"RoomBalanceSummary"`, `"Invite"`). `notifications` and `fcm_tokens` are lower-case.
+Table names are case-sensitive in Postgres — mixed-case names must be double-quoted in SQL (`"Users"`, `"Rooms"`, `"UserRooms"`, `"Spendings"`, `"SpendingSplits"`, `"RoomBalanceSummary"`, `"Invite"`). `notifications`, `fcm_tokens` and `refresh_tokens` are lower-case.
 
 ### Users
 A registered person, created on first login (Google or Facebook — see [AUTH.md](AUTH.md)).
@@ -142,6 +142,22 @@ A Firebase Cloud Messaging device token belonging to a user. Not room-scoped —
 
 Registering a token that already exists re-assigns it to the calling user (a second account logging in on the same device takes the token over).
 
+### refresh_tokens
+One row per issued refresh token (migration `20261005120000`; flow in [AUTH.md](AUTH.md)). A login starts a new *family* (one per device session); each refresh spends the presented token and adds the next one to the same family.
+
+| Field      | Type             | Notes                                                        |
+|------------|------------------|--------------------------------------------------------------|
+| id         | bigint PK        |                                                              |
+| user_id    | bigint FK        | → Users.id, `ON DELETE CASCADE`                              |
+| token_hash | text             | Unique. SHA-256 hex of the token; the raw token is never stored |
+| family_id  | uuid             | Shared by every rotation of one login                        |
+| expires_at | timestamptz      | Issue time + `REFRESH_TOKEN_EXPIRY_DAYS`                     |
+| used_at    | timestamptz null | Set when the token is rotated                                |
+| revoked_at | timestamptz null | Set by logout or reuse detection                             |
+| created_at | timestamptz      |                                                              |
+
+A token is valid when `used_at` and `revoked_at` are null and `expires_at` is in the future. Presenting a spent token more than 30 seconds after it was used revokes its whole family.
+
 ### Removed
 - `balance` (settlement/contribution ledger) — dropped in migration `20260718165615`; replaced by `Spendings.settled_at` and `RoomBalanceSummary`.
 - `push_subscriptions` (Web Push / VAPID) — dropped in migration `20260903083333`; replaced by `fcm_tokens`.
@@ -233,5 +249,6 @@ Spendings ──< SpendingSplits >── Users       (participants + share, per 
 Users ──< RoomBalanceSummary >── Rooms       (one active row + N closed rows per member per room)
 Users ──< Invite    >── Rooms                (invited_by)
 Users ──< fcm_tokens                         (one row per device)
+Users ──< refresh_tokens                     (one family per device session)
 Rooms ──< notifications                      (activity log, unmounted)
 ```

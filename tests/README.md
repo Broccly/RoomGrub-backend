@@ -57,6 +57,13 @@ Redis is needed. Request the `fake_redis` fixture to assert on published events 
 - `auth_headers(user)` — builds a Bearer token for a user dict (must include `id`, `email`). A plain function, imported from `conftest`, not a fixture.
 - `fake_redis` — the in-memory Redis the app is using for this test.
 
+Local to `tests/e2e/test_auth.py`:
+
+- `login(email=..., client=test_client)` — logs in through `POST /auth/login` with provider verification monkeypatched; returns the response body (both tokens and the user).
+- `rollback_on_error_client` — a `TestClient` whose DB dependency rolls a failed request back to a savepoint, like the real `db_conn()`. The shared `test_client` never rolls anything back, so use this one when a test must prove that a write survives an error response.
+
+Refresh-token tests move time by updating `used_at` / `expires_at` directly — the grace window and expiry are compared against the application clock, not Postgres `now()` (which is frozen for the length of the test's transaction).
+
 ## Notifications
 
 `main.py` mounts only the push router (`POST` / `DELETE /api/v1/notifications/fcm-token`).

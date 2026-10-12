@@ -36,6 +36,10 @@ back on teardown (`conn` fixture in `tests/e2e/conftest.py`). No test writes
 persist — no manual cleanup needed, and tests can run in any order without
 interfering with each other.
 
+One exception: `test_replay_revokes_token_issued_by_concurrent_refresh` in
+`tests/e2e/test_auth.py` needs two real concurrent transactions, so it commits on
+its own connections and deletes its user afterwards.
+
 ## Redis
 
 `test_client` overrides `redis_conn` with an in-memory `FakeRedis` (`tests/e2e/conftest.py`)

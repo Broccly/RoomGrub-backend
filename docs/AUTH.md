@@ -162,7 +162,9 @@ POST /api/v1/auth/refresh
 
 Algorithm:
 
-1. Hash the presented token and look the row up by `token_hash`. No row → 401.
+1. Hash the presented token, take the **family lock** of the session it
+   belongs to (see implementation notes), then look the row up by
+   `token_hash`. No row → 401.
 2. `revoked_at` set, or `expires_at` passed → 401.
 3. `used_at` set (the token was already rotated):
    - within the **30-second grace window** of `used_at` → treat as a concurrent
@@ -313,9 +315,19 @@ Postgres.
   **returns** a 401 `JSONResponse` instead of raising, and the request commits
   normally. Don't "tidy" this into a `raise` —
   `test_family_revocation_survives_the_401` exists to catch that.
-- **Row lock.** `get_refresh_token_for_update` selects `FOR UPDATE`, so two
-  requests presenting the same token are processed one after the other and the
-  second one sees `used_at` set.
+- **Family lock.** `refresh` and `logout` first call
+  `lock_refresh_token_family`, a transaction-scoped Postgres advisory lock
+  (`pg_advisory_xact_lock`) keyed on the token's `family_id`, so all refreshes
+  and logouts of one session run one after the other. A row lock is not
+  enough: a replay of a spent token and a refresh of the live token lock
+  different rows, and the replay's `UPDATE ... WHERE family_id = ...` cannot
+  see the successor the refresh has inserted but not yet committed — that
+  token would survive the revocation. Take the family lock **before** any row
+  lock and read the token only afterwards; the other order can deadlock.
+  `test_replay_revokes_token_issued_by_concurrent_refresh` covers the race.
+- **Row lock.** `get_refresh_token_for_update` also selects `FOR UPDATE`, so
+  the row cannot change under the request (e.g. a login's cleanup deleting
+  it).
 - **Lookup by hash.** Raw tokens are never stored or compared.
 - **Housekeeping.** Every login deletes that user's expired and revoked rows
   (`delete_dead_refresh_tokens`). Spent-but-unexpired rows are kept on

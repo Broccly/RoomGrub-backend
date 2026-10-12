@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POST /api/v1/auth/refresh` — trades a refresh token for a new access + refresh token pair. Tokens are single-use and rotate on every call, each new one with a fresh `REFRESH_TOKEN_EXPIRY_DAYS` lifetime (sliding idle window). Replaying a spent token more than 30 seconds after it was used revokes that device's whole session; unknown, expired, revoked and replayed tokens all answer `401 Invalid refresh token`
 - `POST /api/v1/auth/logout` — revokes the session the given refresh token belongs to; always 204
 - `refresh_tokens` table (migration `20261005120000`): one row per issued token, storing only its SHA-256 hash, with `ON DELETE CASCADE` from `Users`. A user's expired and revoked rows are deleted at their next login
+- Refresh and logout serialise per session with a Postgres advisory lock on the token's family (`auth_model.lock_refresh_token_family`), so a family revocation cannot miss a token issued by a concurrent refresh of another token in the same family
 - `REFRESH_TOKEN_EXPIRY_DAYS` env var (default 90)
 - e2e coverage for rotation, the grace window, reuse detection, expiry, logout and cleanup (`tests/e2e/test_auth.py`)
 

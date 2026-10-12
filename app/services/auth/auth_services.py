@@ -5,6 +5,7 @@ from app.models.auth.auth_model import (
     delete_dead_refresh_tokens,
     get_refresh_token_for_update,
     insert_refresh_token,
+    lock_refresh_token_family,
     mark_refresh_token_used,
     revoke_refresh_token_family,
     upsert_user,
@@ -66,8 +67,12 @@ def login(conn: Connection, provider: str, token: str, redis_client: redis.Redis
 
 
 def refresh(conn: Connection, refresh_token: str) -> dict:
+    token_hash = hash_refresh_token(refresh_token)
+    # Serialises this with every other refresh and logout of the same session, so a
+    # revocation can never miss a token issued by a concurrent refresh.
+    lock_refresh_token_family(conn, token_hash)
     now = datetime.now(timezone.utc)
-    row = get_refresh_token_for_update(conn, hash_refresh_token(refresh_token))
+    row = get_refresh_token_for_update(conn, token_hash)
     if row is None or row["revoked_at"] is not None or row["expires_at"] <= now:
         raise InvalidRefreshTokenError("Invalid refresh token")
 
@@ -84,6 +89,8 @@ def refresh(conn: Connection, refresh_token: str) -> dict:
 
 
 def logout(conn: Connection, refresh_token: str) -> None:
-    row = get_refresh_token_for_update(conn, hash_refresh_token(refresh_token))
+    token_hash = hash_refresh_token(refresh_token)
+    lock_refresh_token_family(conn, token_hash)
+    row = get_refresh_token_for_update(conn, token_hash)
     if row is not None:
         revoke_refresh_token_family(conn, row["family_id"], datetime.now(timezone.utc))

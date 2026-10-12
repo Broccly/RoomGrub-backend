@@ -227,6 +227,7 @@ These rules **must** keep holding. Full detail in `docs/DOMAIN.md`.
 | Invite expires after 7 days | checked at validate and accept time in `invites_services` |
 | Refresh tokens are stored only as SHA-256 hashes, in Postgres — never raw, never in Redis | `auth_model` / `auth_services` |
 | A refresh token is single-use; replaying a spent one outside the 30 s grace window revokes its whole family, and that revoke must commit even though the response is 401 | `auth_services.refresh` + `refresh_endpoint` |
+| Refresh and logout take the family advisory lock (`lock_refresh_token_family`) before reading the token, so a revocation cannot miss a token issued by a concurrent refresh | `auth_services.refresh` / `logout` |
 | Refresh tokens never authenticate API calls — only the access JWT does | `get_current_user` |
 
 ---

@@ -1,11 +1,15 @@
 import json
+import threading
 import time
+import uuid
+from datetime import datetime, timezone
 
 import jwt
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from app.models.auth.auth_model import upsert_user
 from app.services.auth import auth_services
 from app.utils.jwt_utils import hash_refresh_token
 from db.engine import db_conn
@@ -292,3 +296,52 @@ class TestRefreshTokens:
             text("SELECT count(*) FROM refresh_tokens WHERE user_id = :id"), {"id": body["user"]["id"]}
         ).scalar_one()
         assert remaining == 0
+
+
+def test_replay_revokes_token_issued_by_concurrent_refresh(db_engine):
+    """A replay racing a refresh of the live token must not leave the refresh's new
+    token alive. Needs two real transactions, so unlike the tests above it commits
+    and deletes its own user afterwards."""
+    email = "refresh-race@example.com"
+    now = datetime.now(timezone.utc)
+    with db_engine.begin() as setup:
+        user = upsert_user(setup, uid=f"uid-{email}", email=email, name="Race User", profile=None)
+        family_id = uuid.uuid4()
+        spent = auth_services._issue_refresh_token(setup, user["id"], family_id, now)
+        live = auth_services._issue_refresh_token(setup, user["id"], family_id, now)
+        setup.execute(
+            text("UPDATE refresh_tokens SET used_at = now() - interval '5 minutes' WHERE token_hash = :h"),
+            {"h": hash_refresh_token(spent)},
+        )
+
+    errors: list[Exception] = []
+
+    def replay(replayer) -> None:
+        try:
+            with pytest.raises(auth_services.InvalidRefreshTokenError):
+                auth_services.refresh(replayer, spent)
+            replayer.commit()
+        except Exception as e:  # surfaced on the main thread below
+            errors.append(e)
+
+    try:
+        with db_engine.connect() as refresher, db_engine.connect() as replayer:
+            # The refresh has issued its new token but not committed yet.
+            auth_services.refresh(refresher, live)
+            thread = threading.Thread(target=replay, args=(replayer,))
+            thread.start()
+            time.sleep(0.3)  # let the replay run into the refresh's lock
+            refresher.commit()
+            thread.join(timeout=10)
+            assert not thread.is_alive()
+        assert errors == []
+
+        with db_engine.connect() as check:
+            alive = check.execute(
+                text("SELECT count(*) FROM refresh_tokens WHERE family_id = :f AND revoked_at IS NULL"),
+                {"f": family_id},
+            ).scalar_one()
+        assert alive == 0
+    finally:
+        with db_engine.begin() as cleanup:
+            cleanup.execute(text('DELETE FROM "Users" WHERE email = :email'), {"email": email})

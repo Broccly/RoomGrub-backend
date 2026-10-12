@@ -32,6 +32,20 @@ def insert_refresh_token(
     )
 
 
+def lock_refresh_token_family(conn: Connection, token_hash: str) -> None:
+    # Family-wide lock, held until the transaction ends. Row locks alone cannot stop a
+    # refresh inserting a successor that a concurrent family revocation never sees.
+    # Take it before any row lock, and read the token only afterwards.
+    conn.execute(
+        text("""
+            SELECT pg_advisory_xact_lock(hashtextextended(CAST(family_id AS text), 0))
+            FROM refresh_tokens
+            WHERE token_hash = :token_hash
+        """),
+        {"token_hash": token_hash},
+    )
+
+
 def get_refresh_token_for_update(conn: Connection, token_hash: str) -> dict | None:
     # Row lock: two requests presenting the same token are handled one after the other.
     row = conn.execute(

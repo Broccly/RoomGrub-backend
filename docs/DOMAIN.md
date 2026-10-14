@@ -156,7 +156,7 @@ One row per issued refresh token (migration `20261005120000`; flow in [AUTH.md](
 | revoked_at | timestamptz null | Set by logout or reuse detection                             |
 | created_at | timestamptz      |                                                              |
 
-A token is valid when `used_at` and `revoked_at` are null and `expires_at` is in the future. Presenting a spent token more than 30 seconds after it was used revokes its whole family.
+A token is normally valid when `used_at` and `revoked_at` are null and `expires_at` is in the future; a spent token presented within the 30-second grace window is also accepted as a concurrent retry. Presenting a spent token more than 30 seconds after it was used revokes its whole family.
 
 ### Removed
 - `balance` (settlement/contribution ledger) — dropped in migration `20260718165615`; replaced by `Spendings.settled_at` and `RoomBalanceSummary`.

@@ -26,7 +26,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Events are published before the request's transaction commits; a later rollback would leave a `welcome` / `expense_split` event for something that didn't happen.
 
 ### Features not built yet
-- [ ] `POST /auth/logout-all` — sign out every device of a user (revoke all their refresh-token families).
+- [ ] `POST /api/v1/auth/logout-all` — sign out every device of a user (revoke all their refresh-token families).
 - [ ] A per-device label on `refresh_tokens` rows so a user can see and end individual sessions.
 - [ ] Scheduled cleanup of `refresh_tokens`: dead rows are only deleted when their user logs in again, so rows of users who never return stay until the user is deleted.
 - [ ] Settlement-history endpoint — list a member's closed `RoomBalanceSummary` rows, most recent first. The data is already being recorded.

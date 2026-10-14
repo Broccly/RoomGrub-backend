@@ -358,7 +358,7 @@ Postgres.
 5. Run only one refresh at a time — queue other requests behind it. Parallel refreshes with the same token are what the grace window is for, not a pattern to rely on.
 6. If `/auth/refresh` returns 401, the session is over: clear both tokens and show the sign-in screen. This is the only path back to provider sign-in.
 7. After login, register the device for push with `POST /api/v1/notifications/fcm-token`.
-8. On logout, call `/auth/logout` with the refresh token, unregister the FCM token, then clear local storage.
+8. On logout, unregister the FCM token (refresh first if needed), call `/auth/logout` with the refresh token, then clear local storage.
 
 ---
 

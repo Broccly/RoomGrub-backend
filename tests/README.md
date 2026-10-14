@@ -36,6 +36,10 @@ back on teardown (`conn` fixture in `tests/e2e/conftest.py`). No test writes
 persist — no manual cleanup needed, and tests can run in any order without
 interfering with each other.
 
+One exception: `test_replay_revokes_token_issued_by_concurrent_refresh` in
+`tests/e2e/test_auth.py` needs two real concurrent transactions, so it commits on
+its own connections and deletes its user afterwards.
+
 ## Redis
 
 `test_client` overrides `redis_conn` with an in-memory `FakeRedis` (`tests/e2e/conftest.py`)
@@ -56,6 +60,13 @@ Redis is needed. Request the `fake_redis` fixture to assert on published events 
 - `make_expense(room_id, user_email, money=10.0, material="test item")` — inserts an expense, splits it evenly across the room's current members, and updates their balances.
 - `auth_headers(user)` — builds a Bearer token for a user dict (must include `id`, `email`). A plain function, imported from `conftest`, not a fixture.
 - `fake_redis` — the in-memory Redis the app is using for this test.
+
+Local to `tests/e2e/test_auth.py`:
+
+- `login(email=..., client=test_client)` — logs in through `POST /auth/login` with provider verification monkeypatched; returns the response body (both tokens and the user).
+- `rollback_on_error_client` — a `TestClient` whose DB dependency rolls a failed request back to a savepoint, like the real `db_conn()`. The shared `test_client` never rolls anything back, so use this one when a test must prove that a write survives an error response.
+
+Refresh-token tests move time by updating `used_at` / `expires_at` directly — the grace window and expiry are compared against the application clock, not Postgres `now()` (which is frozen for the length of the test's transaction).
 
 ## Notifications
 

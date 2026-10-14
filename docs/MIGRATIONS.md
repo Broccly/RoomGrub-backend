@@ -68,6 +68,7 @@ dbmate new add_some_column
 | `20260724120000` | `fix_room_balance_summary_backfill` | Recomputes balances the previous backfill missed (`settled IS NULL` expenses). Data only; no-op down |
 | `20260724130000` | `rebuild_room_balance_from_pending` | Wipes and rebuilds splits and balances from unsettled expenses, always including the payer. Data only |
 | `20260903083333` | `replace_push_subscriptions_with_fcm_tokens` | Drops `push_subscriptions`, creates `fcm_tokens` |
+| `20261005120000` | `add_refresh_tokens` | Creates `refresh_tokens` (hashed, rotating refresh tokens — see AUTH.md) |
 
 Two of these are destructive on the way up and only best-effort on the way down: `20260718165615` discards lump-sum `balance` rows, and `20260903083333` discards all Web Push subscriptions.
 
@@ -80,7 +81,7 @@ tables: `Invite`, `Users`, `Rooms`, `SpendingParticipants`, `Spendings`,
 
 That list is a snapshot of the starting point, not the current schema — `balance`
 and `push_subscriptions` have since been dropped and `SpendingSplits`,
-`RoomBalanceSummary` and `fcm_tokens` added by the migrations above.
+`RoomBalanceSummary`, `fcm_tokens` and `refresh_tokens` added by the migrations above.
 
 It deliberately excludes Supabase's Row Level Security policies and grants to
 `authenticated`/`anon`/`service_role` — those are a Supabase platform feature

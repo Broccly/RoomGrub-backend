@@ -37,7 +37,8 @@ Supabase dev database instead, point these at it — and read
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `JWT_SECRET` | yes | placeholder | HS256 signing key for RoomGrub JWTs. Use 32+ random characters. |
-| `JWT_EXPIRY_HOURS` | no | `24` | Token lifetime |
+| `JWT_ACCESS_EXPIRY_MINUTES` | no | `15` | Access token lifetime. Replaced `JWT_EXPIRY_HOURS`, which is no longer read — remove it from your `.env` |
+| `REFRESH_TOKEN_EXPIRY_DAYS` | no | `90` | How long a device can stay idle before its refresh token expires and it is signed out |
 | `GOOGLE_CLIENT_ID` | yes | placeholder | OAuth client ID that Google `id_token`s must be issued for |
 
 ### Redis

@@ -35,8 +35,8 @@ POST /api/v1/auth/login   { "provider": "google", "token": "<id_token>" }
     │  2. verify_provider_token()      app/utils/auth_providers.py
     │  3. upsert_user()                app/models/auth/auth_model.py
     │  4. first login? → publish "welcome" event to the rg:emails stream
-    │  5. create_jwt()                 app/utils/jwt_utils.py
-    │  6. issue refresh token, store its hash in refresh_tokens
+    │  5. issue refresh token, store its hash in refresh_tokens
+    │  6. create_jwt()                 app/utils/jwt_utils.py
     ▼
 { "access_token": "<jwt>", "token_type": "bearer", "expires_in": 900,
   "refresh_token": "<opaque>", "user": {...} }

@@ -201,7 +201,7 @@ The room-scoped activity-log router exists in `app/api/notifications/api.py` but
 3. The backend verifies the token with the provider, upserts the `Users` row, and returns a short-lived **access token** (HS256 JWT, signed with `JWT_SECRET`, `sub` = user id) and a long-lived **refresh token** (opaque, stored hashed in `refresh_tokens`).
 4. Client sends `Authorization: Bearer <access_token>` on every other request.
 5. `get_current_user` verifies the JWT and loads the user (Redis first, then Postgres). Room-scoped routes add `require_room_member` / `require_room_admin` / `require_room_non_admin`.
-6. When the access token expires (`401 Token expired`), the client calls `POST /api/v1/auth/refresh` with its refresh token and gets a new pair. The old refresh token is spent; replaying it revokes that device's session.
+6. When the access token expires (`401 Token expired`), the client calls `POST /api/v1/auth/refresh` with its refresh token and gets a new pair. The old refresh token is spent; replaying it after the 30-second grace window revokes that device's session.
 7. `POST /api/v1/auth/logout` revokes the device's refresh tokens.
 
 A device therefore stays signed in until the user logs out, it sits idle past `REFRESH_TOKEN_EXPIRY_DAYS`, or its refresh token is revoked.

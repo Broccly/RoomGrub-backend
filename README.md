@@ -16,7 +16,7 @@ Standalone **Python FastAPI** backend for RoomGrub — a shared-expense tracker 
 - **FastAPI** — REST API framework
 - **PostgreSQL** (Supabase-hosted in dev/prod; local Docker Postgres for local dev/test) — schema managed via [dbmate](https://github.com/amacneil/dbmate) migrations
 - **Raw SQL** — all DB queries are parameterized SQL, no ORM
-- **Auth** — Google / Facebook token exchanged at login for an app-issued short-lived access JWT (verified on every request) plus a rotating refresh token, so devices stay signed in
+- **Auth** — Google / Facebook token exchanged at login for an app-issued short-lived access JWT (verified on every request) plus a rotating refresh token that clients can use to keep devices signed in
 - **Redis (Upstash)** — cache-aside layer for auth/room-access checks (fails open to Postgres if unreachable) and the `rg:emails` event stream
 - **Firebase Cloud Messaging** — push notifications (optional; disabled when unconfigured)
 - **Pydantic v2** — request/response validation

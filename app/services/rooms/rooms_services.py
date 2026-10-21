@@ -5,6 +5,7 @@ from app.models.rooms.rooms_model import (
     insert_room,
     insert_user_room,
     get_rooms_for_user,
+    get_member_previews,
     get_room_by_id,
     get_total_spent,
     get_pending_amount,
@@ -23,7 +24,11 @@ def create_room(conn: Connection, current_user: dict) -> dict:
 
 
 def list_rooms(conn: Connection, current_user: dict) -> list[dict]:
-    return get_rooms_for_user(conn, current_user["id"])
+    rooms = get_rooms_for_user(conn, current_user["id"])
+    previews: dict[int, list[dict]] = {}
+    for p in get_member_previews(conn, [r["id"] for r in rooms]):
+        previews.setdefault(p.pop("room_id"), []).append(p)
+    return [{**r, "member_preview": previews.get(r["id"], [])} for r in rooms]
 
 
 def get_room_summary(conn: Connection, room_id: int) -> dict:

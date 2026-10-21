@@ -34,7 +34,7 @@ A shared household / group. Deliberately thin — member count and admin are **d
 | name       | text      | Unused by the API                        |
 | created_at | timestamp |                                          |
 
-API responses expose `members` (count of `UserRooms` rows) and `admin` (email of one Admin of the room).
+API responses expose `members` (count of `UserRooms` rows) and `admin` (email of one Admin of the room). `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
 
 ### UserRooms (membership)
 Many-to-many join between Users ↔ Rooms with a role.

@@ -11,6 +11,12 @@ class ListRoomsResponse(BaseModel):
     admin: str | None
 
 
+class MemberPreviewRow(BaseModel):
+    room_id: int
+    profile: str | None
+    label: str
+
+
 class MemberStatRow(BaseModel):
     user_id: int
     name: str | None

@@ -5,17 +5,17 @@ from db.engine import db_conn
 from db.redis_client import redis_conn
 from app.dependencies.current_user import get_current_user
 from app.dependencies.room_access import require_room_admin, require_room_member
-from app.api.rooms.schemas import RoomResponse, RoomSummary, DashboardResponse
+from app.api.rooms.schemas import RoomListItem, RoomResponse, RoomSummary, DashboardResponse
 from app.services.rooms import rooms_services
 
 router = APIRouter(prefix="/api/v1/rooms", tags=["Rooms"])
 
 
-@router.get("", response_model=list[RoomResponse])
+@router.get("", response_model=list[RoomListItem])
 def list_rooms(
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
-) -> list[RoomResponse]:
+) -> list[RoomListItem]:
     return rooms_services.list_rooms(conn, current_user)
 
 

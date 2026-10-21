@@ -134,7 +134,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Rooms
 | Method | Path                                | Access | Description                                       |
 |--------|-------------------------------------|--------|---------------------------------------------------|
-| GET    | `/api/v1/rooms`                     | User   | List rooms for current user                       |
+| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars) |
 | POST   | `/api/v1/rooms`                     | User   | Create a room; creator becomes Admin              |
 | GET    | `/api/v1/rooms/{room_id}`           | Member | Room summary: `total_spent`, `pending_amount`     |
 | GET    | `/api/v1/rooms/{room_id}/dashboard` | Member | Room + per-member unsettled spend                 |

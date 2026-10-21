@@ -45,6 +45,48 @@ class TestRoomsAuthenticated:
         ids = [room["id"] for room in r.json()]
         assert ids == [room_a["id"]]
 
+    def test_list_rooms_member_preview_is_first_four_by_join_order(
+        self, test_client, make_user, make_room, add_member
+    ):
+        admin = make_user("prev-admin@example.com", name="Asha", profile="https://example.com/asha.png")
+        room = make_room(admin)
+        no_name = make_user("prev-noname@example.com", name="")
+        add_member(room["id"], no_name)
+        for i in range(2, 6):
+            add_member(room["id"], make_user(f"prev-m{i}@example.com", name=f"M{i}"))
+
+        [listed] = test_client.get("/api/v1/rooms", headers=auth_headers(admin)).json()
+
+        assert listed["members"] == 6
+        assert listed["member_preview"] == [
+            {"profile": "https://example.com/asha.png", "label": "Asha"},
+            {"profile": None, "label": "prev-noname@example.com"},  # no name -> email
+            {"profile": None, "label": "M2"},
+            {"profile": None, "label": "M3"},
+        ]
+
+    def test_list_rooms_member_preview_is_per_room(self, test_client, make_user, make_room, add_member):
+        me = make_user("per-me@example.com", name="Me")
+        mate_a = make_user("per-a@example.com", name="Mate A")
+        mate_b = make_user("per-b@example.com", name="Mate B")
+        room_a = make_room(me)
+        add_member(room_a["id"], mate_a)
+        room_b = make_room(mate_b)
+        add_member(room_b["id"], me)
+
+        rooms = {r["id"]: r for r in test_client.get("/api/v1/rooms", headers=auth_headers(me)).json()}
+
+        assert [p["label"] for p in rooms[room_a["id"]]["member_preview"]] == ["Me", "Mate A"]
+        assert [p["label"] for p in rooms[room_b["id"]]["member_preview"]] == ["Mate B", "Me"]
+
+    def test_member_preview_only_on_the_rooms_list(self, test_client, make_user, make_room):
+        admin = make_user("prev-only@example.com")
+        created = test_client.post("/api/v1/rooms", headers=auth_headers(admin)).json()
+        assert "member_preview" not in created
+
+        summary = test_client.get(f"/api/v1/rooms/{created['id']}", headers=auth_headers(admin)).json()
+        assert "member_preview" not in summary
+
     def test_get_room_summary(self, test_client, make_user, make_room, make_expense):
         admin = make_user("admin2@example.com")
         room = make_room(admin)

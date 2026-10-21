@@ -2,6 +2,7 @@ from sqlalchemy import Connection, text
 from app.models.rooms.schemas import (
     InsertRoomResponse,
     ListRoomsResponse,
+    MemberPreviewRow,
     MemberStatRow,
 )
 
@@ -38,6 +39,29 @@ def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
         {"user_id": user_id},
     ).fetchall()
     return [ListRoomsResponse(**r._mapping).model_dump() for r in rows]
+
+
+def get_member_previews(conn: Connection, room_ids: list[int], per_room: int = 4) -> list[dict]:
+    """The first `per_room` members of each room, by join date."""
+    if not room_ids:
+        return []
+    rows = conn.execute(
+        text("""
+            SELECT room_id, profile, label
+            FROM (
+                SELECT ur.room_id, u.profile,
+                       COALESCE(NULLIF(u.name, ''), u.email) AS label,
+                       ROW_NUMBER() OVER (PARTITION BY ur.room_id ORDER BY ur.joined_at, ur.id) AS rn
+                FROM "UserRooms" ur
+                JOIN "Users" u ON u.id = ur.user_id
+                WHERE ur.room_id = ANY(:room_ids)
+            ) ranked
+            WHERE rn <= :per_room
+            ORDER BY room_id, rn
+        """),
+        {"room_ids": room_ids, "per_room": per_room},
+    ).fetchall()
+    return [MemberPreviewRow(**r._mapping).model_dump() for r in rows]
 
 
 def get_room_by_id(conn: Connection, room_id: int) -> dict | None:

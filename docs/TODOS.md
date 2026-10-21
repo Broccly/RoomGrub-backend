@@ -17,8 +17,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Tag releases in git (`v1.0.0`, `v1.1.0`, `v1.2.0`) to match CHANGELOG.md.
 
 ### Behaviour to verify or fix
-- [ ] Editing or deleting an **already settled** expense reverses its splits against the member's *current* active balance. Either block edits/deletes of settled expenses or skip the balance reversal for them.
-- [ ] If the payer is not in `participant_user_ids`, no split row records `amount_paid`: the balances for that expense don't net to zero, and a later `money` edit drops its splits entirely (`edit_expense` only re-applies when it finds a payer row). Decide whether the payer must always be a participant.
+- [ ] If the payer is not in `participant_user_ids` on **create**, no split row records `amount_paid`, so the balances for that expense don't net to zero. Edits already require the payer to stay in the split; decide whether creation should too.
 - [ ] Share rounding: `round(money / n, 2)` per participant can leave a cent of drift per expense. Assign the remainder to one participant so splits always sum to `money`.
 - [ ] `Spendings.money` is `bigint` while the API accepts fractional amounts and splits are `numeric(10,2)` — confirm whether fractional expenses are meant to be supported and align the column.
 - [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused).
@@ -32,7 +31,6 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Settlement-history endpoint — list a member's closed `RoomBalanceSummary` rows, most recent first. The data is already being recorded.
 - [ ] Activity log: decide whether to mount `notifications_router` (currently commented out in `main.py`) and have expense / member / settle actions write to it, or delete the router, service, model and table.
 - [ ] Push for more than "expense added": settle-all, member joined, member removed.
-- [ ] Changing an expense's participants after creation.
 - [ ] `GET /health` does not touch the DB — add a readiness check that does.
 - [ ] Move CORS origins from `main.py` to an env var.
 - [ ] Prod environment: `PROD_DB_*` vars, `prod_database_url` in `scripts/db_url.sh` (see MIGRATIONS.md).
@@ -76,6 +74,8 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [x] `POST /api/v1/rooms/{room_id}/expenses/for-member` — Admin
 - [x] `GET /api/v1/rooms/{room_id}/expenses/{expense_id}` — detail with participants
 - [x] `PATCH` / `DELETE /api/v1/rooms/{room_id}/expenses/{expense_id}` — Admin
+- [x] Settled expenses can't be edited or deleted (409), so their splits are never reversed against a later balance
+- [x] `PATCH` can change an expense's participants (`participant_user_ids`)
 
 ### Split domain
 - [x] `SpendingSplits` and `RoomBalanceSummary` tables, backfill and backfill fixes

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.room_access import require_room_admin, require_room_member
@@ -65,11 +65,18 @@ def edit_expense(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ) -> ExpenseResponse:
-    return expenses_services.edit_expense(
-        conn, room_id, expense_id,
-        body.material, body.money, body.created_at,
-        membership["user"],
-    )
+    try:
+        return expenses_services.edit_expense(
+            conn, room_id, expense_id,
+            body.material, body.money, body.created_at,
+            membership["user"], body.participant_user_ids,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except expenses_services.ExpenseSettledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete("/{room_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -79,7 +86,12 @@ def delete_expense(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ) -> Response:
-    expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
+    try:
+        expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except expenses_services.ExpenseSettledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -186,7 +186,9 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 Because each share is rounded to 2 decimals, the shares of an expense may not sum exactly to `money` (100 ÷ 3 → 3 × 33.33), leaving up to a few cents of drift in the room's balances.
 
 ### Editing and deleting an expense (Admin)
-- Changing `money` reverses the old splits and balance shifts, then re-applies them with the **same participants and the same payer**. Participants cannot be changed after creation.
+- Only **unsettled** expenses can be changed. Editing or deleting a settled one returns `409`: its splits were already paid out by a settle-all, so reversing them would corrupt the current balances.
+- Changing `money` and/or `participant_user_ids` reverses the old splits and balance shifts, then re-applies them. The new amount is used, and the new participants if sent, otherwise the existing ones. The payer is always `Spendings.user_id` and can't be changed.
+- `participant_user_ids` on edit must be non-empty, all current room members, and must include the payer (unless the payer has left the room); otherwise `400`. Unlike creation, an empty list does not mean "everyone".
 - Changing only `material` / `created_at` leaves splits untouched.
 - Deleting reverses the balance shifts and removes the expense; its splits go with it.
 

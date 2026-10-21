@@ -248,3 +248,117 @@ class TestExpensesAuthenticated:
         settled = next(i for i in items if i["id"] == expense["id"])
         assert settled["settled"] is True
         assert settled["settled_at"] is not None
+
+    def test_settled_expense_cannot_be_edited_or_deleted(self, test_client, make_user, make_room, add_member):
+        admin = make_user("settled-admin@example.com")
+        member = make_user("settled-member@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        headers = auth_headers(admin)
+
+        expense = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses", json={"material": "Rent", "money": 100}, headers=headers
+        ).json()
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/splits/settle-all", json={"members": []}, headers=headers
+        )
+        assert r.status_code == 204
+
+        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+        r = test_client.patch(url, json={"money": 40}, headers=headers)
+        assert r.status_code == 409
+        r = test_client.delete(url, headers=headers)
+        assert r.status_code == 409
+
+        # The settled expense is intact and the fresh balances were not touched.
+        assert test_client.get(url, headers=headers).json()["money"] == 100
+        splits = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=headers).json()
+        assert all(m["pending_amount"] == 0 for m in splits["members"])
+
+
+class TestEditExpenseParticipants:
+    @staticmethod
+    def _setup(test_client, make_user, make_room, add_member, tag: str):
+        admin = make_user(f"{tag}-admin@example.com")
+        m1 = make_user(f"{tag}-m1@example.com")
+        m2 = make_user(f"{tag}-m2@example.com")
+        room = make_room(admin)
+        add_member(room["id"], m1)
+        add_member(room["id"], m2)
+        headers = auth_headers(admin)
+        expense = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses", json={"material": "Rent", "money": 90}, headers=headers
+        ).json()
+        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+        return admin, m1, m2, room, headers, url
+
+    @staticmethod
+    def _balances(test_client, room, headers) -> dict[str, float]:
+        splits = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=headers).json()
+        return {m["user_email"]: m["pending_amount"] for m in splits["members"]}
+
+    def test_narrow_the_split(self, test_client, make_user, make_room, add_member):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "narrow")
+
+        r = test_client.patch(url, json={"participant_user_ids": [admin["id"], m1["id"]]}, headers=headers)
+        assert r.status_code == 200
+        assert r.json()["money"] == 90
+
+        participants = test_client.get(url, headers=headers).json()["participants"]
+        assert {p["user_id"]: p["amount_owed"] for p in participants} == {admin["id"]: 45, m1["id"]: 45}
+        assert self._balances(test_client, room, headers) == {
+            admin["email"]: 45, m1["email"]: -45, m2["email"]: 0,
+        }
+
+    def test_change_money_and_participants_together(self, test_client, make_user, make_room, add_member):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "both")
+
+        r = test_client.patch(
+            url, json={"money": 60, "participant_user_ids": [admin["id"], m2["id"]]}, headers=headers
+        )
+        assert r.status_code == 200
+        assert self._balances(test_client, room, headers) == {
+            admin["email"]: 30, m1["email"]: 0, m2["email"]: -30,
+        }
+
+    def test_invalid_participant_lists_are_rejected(self, test_client, make_user, make_room, add_member):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "bad")
+        outsider = make_user("bad-outsider@example.com")
+
+        for ids, detail in [
+            ([], "Pick at least one participant"),
+            ([admin["id"], outsider["id"]], f"Not room members: [{outsider['id']}]"),
+            ([m1["id"], m2["id"]], "The payer must be part of the split"),
+        ]:
+            r = test_client.patch(url, json={"participant_user_ids": ids}, headers=headers)
+            assert r.status_code == 400
+            assert r.json()["detail"] == detail
+
+        # Rejected edits leave the original three-way split in place.
+        assert self._balances(test_client, room, headers) == {
+            admin["email"]: 60, m1["email"]: -30, m2["email"]: -30,
+        }
+
+    def test_money_edit_keeps_splits_when_payer_is_outside_them(
+        self, test_client, make_user, make_room, add_member
+    ):
+        admin = make_user("outside-admin@example.com")
+        m1 = make_user("outside-m1@example.com")
+        m2 = make_user("outside-m2@example.com")
+        room = make_room(admin)
+        add_member(room["id"], m1)
+        add_member(room["id"], m2)
+        headers = auth_headers(admin)
+        # Creation still allows leaving the payer out of the split.
+        expense = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "Gift", "money": 40, "participant_user_ids": [m1["id"], m2["id"]]},
+            headers=headers,
+        ).json()
+        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+
+        r = test_client.patch(url, json={"money": 60}, headers=headers)
+        assert r.status_code == 200
+
+        participants = test_client.get(url, headers=headers).json()["participants"]
+        assert {p["user_id"]: p["amount_owed"] for p in participants} == {m1["id"]: 30, m2["id"]: 30}

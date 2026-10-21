@@ -34,6 +34,8 @@ class ExpenseUpdate(BaseModel):
     material: str | None = None
     money: float | None = None
     created_at: datetime | None = None
+    # Replaces who the expense is split between; omit to keep the current split.
+    participant_user_ids: list[int] | None = None
 
 
 class PaginatedExpenses(BaseModel):

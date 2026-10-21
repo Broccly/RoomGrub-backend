@@ -16,9 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refresh and logout serialise per session with a Postgres advisory lock on the token's family (`auth_model.lock_refresh_token_family`), so a family revocation cannot miss a token issued by a concurrent refresh of another token in the same family
 - `REFRESH_TOKEN_EXPIRY_DAYS` env var (default 90)
 - e2e coverage for rotation, the grace window, reuse detection, expiry, logout and cleanup (`tests/e2e/test_auth.py`)
+- `PATCH /rooms/{room_id}/expenses/{expense_id}` accepts `participant_user_ids` to change who an expense is split between. The list must be non-empty, all room members, and include the payer (`400` otherwise); balances are re-split in the same transaction
+
+### Fixed
+
+- Editing `money` on an expense whose payer was not in the split dropped all its splits. The payer is now read from `Spendings.user_id`, so the splits are re-applied
 
 ### Changed
 
+- `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` return `409 Settled expenses can't be changed` for a settled expense. Previously they reversed its splits against the members' current balances (`expenses_services.edit_expense`, `remove_expense`)
 - **Access tokens now live 15 minutes instead of 24 hours.** `JWT_ACCESS_EXPIRY_MINUTES` (default 15) replaces `JWT_EXPIRY_HOURS`, which is no longer read. Clients must call `/auth/refresh` on `401 Token expired`; a client that does not will be signed out every 15 minutes
 - Docs rewritten around the two-token flow: `AUTH.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `SETUP.md`, `MIGRATIONS.md`, `AGENTS.md`, `README.md`, `tests/README.md`, `PLAN.md`, `TODOS.md`
 

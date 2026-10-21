@@ -45,7 +45,7 @@ def get_expenses(
     where = " AND ".join(conditions)
     rows = conn.execute(
         text(f"""
-            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
@@ -61,7 +61,7 @@ def get_expenses(
 def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"

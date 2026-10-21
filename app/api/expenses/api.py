@@ -63,16 +63,18 @@ def edit_expense(
     expense_id: int,
     body: ExpenseUpdate,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
+    membership: dict = Depends(require_room_member),
 ) -> ExpenseResponse:
     try:
         return expenses_services.edit_expense(
             conn, room_id, expense_id,
             body.material, body.money, body.created_at,
-            membership["user"], body.participant_user_ids,
+            membership, body.participant_user_ids,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except expenses_services.ExpenseSettledError as e:
@@ -84,12 +86,14 @@ def delete_expense(
     room_id: int,
     expense_id: int,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
+    membership: dict = Depends(require_room_member),
 ) -> Response:
     try:
-        expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
+        expenses_services.remove_expense(conn, room_id, expense_id, membership)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except expenses_services.ExpenseSettledError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

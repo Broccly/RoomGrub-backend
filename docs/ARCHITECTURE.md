@@ -146,8 +146,8 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | GET    | `/api/v1/rooms/{room_id}/expenses`                | Member | Paginated list (cursor-based). Filters: `settled`, `search`, `user_email`, `date_from`, `date_to` |
 | POST   | `/api/v1/rooms/{room_id}/expenses`                | Member | Add expense paid by self; optional `participant_user_ids` |
 | GET    | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Member | Expense detail with payer and per-participant split |
-| PATCH  | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin  | Edit `material`, `money`, `created_at`, `participant_user_ids` (unsettled only, else 409) |
-| DELETE | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin  | Delete expense and reverse its splits     |
+| PATCH  | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin or owner | Edit `material`, `money`, `created_at`, `participant_user_ids` (unsettled only, else 409) |
+| DELETE | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin or owner | Delete expense and reverse its splits (unsettled only, else 409) |
 | POST   | `/api/v1/rooms/{room_id}/expenses/for-member`     | Admin  | Add expense paid by another member (`user_id`) |
 
 ### Splits

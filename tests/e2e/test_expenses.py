@@ -362,3 +362,88 @@ class TestEditExpenseParticipants:
 
         participants = test_client.get(url, headers=headers).json()["participants"]
         assert {p["user_id"]: p["amount_owed"] for p in participants} == {m1["id"]: 30, m2["id"]: 30}
+
+
+class TestExpenseOwnerPermissions:
+    @staticmethod
+    def _setup(test_client, make_user, make_room, add_member, tag: str):
+        admin = make_user(f"{tag}-admin@example.com")
+        owner = make_user(f"{tag}-owner@example.com")
+        other = make_user(f"{tag}-other@example.com")
+        room = make_room(admin)
+        add_member(room["id"], owner)
+        add_member(room["id"], other)
+        expense = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "Milk", "money": 90},
+            headers=auth_headers(owner),
+        ).json()
+        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+        return admin, owner, other, room, url
+
+    @staticmethod
+    def _balances(test_client, room, user) -> dict[str, float]:
+        splits = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(user)).json()
+        return {m["user_email"]: m["pending_amount"] for m in splits["members"]}
+
+    def test_owner_can_edit_including_participants(self, test_client, make_user, make_room, add_member):
+        admin, owner, other, room, url = self._setup(test_client, make_user, make_room, add_member, "own-edit")
+
+        r = test_client.patch(
+            url,
+            json={"material": "Milk + bread", "participant_user_ids": [owner["id"], other["id"]]},
+            headers=auth_headers(owner),
+        )
+        assert r.status_code == 200
+        assert r.json()["material"] == "Milk + bread"
+        assert self._balances(test_client, room, owner) == {
+            admin["email"]: 0, owner["email"]: 45, other["email"]: -45,
+        }
+
+    def test_owner_can_delete(self, test_client, make_user, make_room, add_member):
+        admin, owner, other, room, url = self._setup(test_client, make_user, make_room, add_member, "own-del")
+
+        r = test_client.delete(url, headers=auth_headers(owner))
+        assert r.status_code == 204
+        assert test_client.get(url, headers=auth_headers(owner)).status_code == 404
+        assert all(v == 0 for v in self._balances(test_client, room, owner).values())
+
+    def test_other_member_cannot_edit_or_delete(self, test_client, make_user, make_room, add_member):
+        admin, owner, other, room, url = self._setup(test_client, make_user, make_room, add_member, "not-own")
+
+        r = test_client.patch(url, json={"material": "x"}, headers=auth_headers(other))
+        assert r.status_code == 403
+        r = test_client.delete(url, headers=auth_headers(other))
+        assert r.status_code == 403
+        assert test_client.get(url, headers=auth_headers(other)).json()["material"] == "Milk"
+
+    def test_admin_can_still_edit_and_delete_any_expense(self, test_client, make_user, make_room, add_member):
+        admin, owner, other, room, url = self._setup(test_client, make_user, make_room, add_member, "admin-any")
+
+        assert test_client.patch(url, json={"money": 30}, headers=auth_headers(admin)).status_code == 200
+        assert test_client.delete(url, headers=auth_headers(admin)).status_code == 204
+
+    def test_member_owns_expense_an_admin_added_for_them(self, test_client, make_user, make_room, add_member):
+        admin = make_user("for-admin@example.com")
+        member = make_user("for-member@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        expense = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses/for-member",
+            json={"material": "Gas", "money": 50, "user_id": member["id"]},
+            headers=auth_headers(admin),
+        ).json()
+
+        r = test_client.delete(
+            f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}", headers=auth_headers(member)
+        )
+        assert r.status_code == 204
+
+    def test_owner_cannot_change_settled_expense(self, test_client, make_user, make_room, add_member):
+        admin, owner, other, room, url = self._setup(test_client, make_user, make_room, add_member, "own-settled")
+        test_client.post(
+            f"/api/v1/rooms/{room['id']}/splits/settle-all", json={"members": []}, headers=auth_headers(admin)
+        )
+
+        assert test_client.patch(url, json={"material": "x"}, headers=auth_headers(owner)).status_code == 409
+        assert test_client.delete(url, headers=auth_headers(owner)).status_code == 409

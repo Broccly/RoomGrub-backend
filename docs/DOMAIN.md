@@ -170,8 +170,8 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 ### Roles
 - A room's creator becomes its first `Admin`. A room can have more than one Admin.
 - An Admin cannot demote themselves, cannot remove themselves, and cannot exit the room — exiting is only open to non-admins.
-- Only Admins can: add expenses for others, edit or delete expenses, change member roles, remove members, create invite links, settle the room, delete the room.
-- Any member can add an expense they paid for and read everything in the room.
+- Only Admins can: add expenses for others, edit or delete other people's expenses, change member roles, remove members, create invite links, settle the room, delete the room.
+- Any member can add an expense they paid for, edit or delete their own unsettled expenses (see below), and read everything in the room.
 
 ### Adding an expense
 1. `money` must be greater than 0.
@@ -185,7 +185,8 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 
 Because each share is rounded to 2 decimals, the shares of an expense may not sum exactly to `money` (100 ÷ 3 → 3 × 33.33), leaving up to a few cents of drift in the room's balances.
 
-### Editing and deleting an expense (Admin)
+### Editing and deleting an expense (Admin or owner)
+- Allowed for any Admin, and for the expense's **owner** — its payer, `Spendings.user_id` (so a member owns an expense an Admin added for them). Anyone else gets `403`. Owners can change everything an Admin can, participants included.
 - Only **unsettled** expenses can be changed. Editing or deleting a settled one returns `409`: its splits were already paid out by a settle-all, so reversing them would corrupt the current balances.
 - Changing `money` and/or `participant_user_ids` reverses the old splits and balance shifts, then re-applies them. The new amount is used, and the new participants if sent, otherwise the existing ones. The payer is always `Spendings.user_id` and can't be changed.
 - `participant_user_ids` on edit must be non-empty, all current room members, and must include the payer (unless the payer has left the room); otherwise `400`. Unlike creation, an empty list does not mean "everyone".

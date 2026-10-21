@@ -142,6 +142,16 @@ def _get_room_expense(conn: Connection, room_id: int, expense_id: int) -> dict:
     return expense
 
 
+def _get_changeable_expense(conn: Connection, room_id: int, expense_id: int, membership: dict) -> dict:
+    """The expense, if this member may edit or delete it: admins and its payer, while unsettled."""
+    expense = _get_room_expense(conn, room_id, expense_id)
+    if membership["role"] != "Admin" and expense["user_id"] != membership["user"]["id"]:
+        raise PermissionError("Only admins or the person who paid can change this expense")
+    if expense["settled"]:
+        raise ExpenseSettledError("Settled expenses can't be changed")
+    return expense
+
+
 def edit_expense(
     conn: Connection,
     room_id: int,
@@ -149,15 +159,13 @@ def edit_expense(
     material: str | None,
     money: float | None,
     created_at,
-    admin_user: dict,
+    membership: dict,
     participant_user_ids: list[int] | None = None,
 ) -> dict:
     if money is not None and money <= 0:
         raise ValueError("Amount must be greater than 0")
 
-    expense = _get_room_expense(conn, room_id, expense_id)
-    if expense["settled"]:
-        raise ExpenseSettledError("Settled expenses can't be changed")
+    expense = _get_changeable_expense(conn, room_id, expense_id, membership)
 
     if material is None and money is None and created_at is None and participant_user_ids is None:
         raise ValueError("Nothing to update")
@@ -207,11 +215,9 @@ def remove_expense(
     conn: Connection,
     room_id: int,
     expense_id: int,
-    admin_user: dict,
+    membership: dict,
 ) -> None:
-    expense = _get_room_expense(conn, room_id, expense_id)
-    if expense["settled"]:
-        raise ExpenseSettledError("Settled expenses can't be changed")
+    _get_changeable_expense(conn, room_id, expense_id, membership)
 
     _reverse_splits_and_balances(conn, room_id, expense_id)
     delete_expense(conn, expense_id)

@@ -1,5 +1,5 @@
 from sqlalchemy import Connection, text
-from app.models.expenses.schemas import ExpenseRow
+from app.models.expenses.schemas import ExpenseRow, FrequentItemRow
 
 
 def get_expenses(
@@ -70,6 +70,38 @@ def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
         {"expense_id": expense_id},
     ).fetchone()
     return ExpenseRow(**row._mapping).model_dump() if row else None
+
+
+def get_frequent_items(conn: Connection, room_id: int, limit: int, window: int = 100) -> list[str]:
+    """Most-used item names across the room's latest `window` expenses.
+
+    `material` can hold several comma-separated items. Names are grouped
+    case-insensitively and shown with their latest spelling; ties go to the
+    most recently used.
+    """
+    rows = conn.execute(
+        text("""
+            WITH recent AS (
+                SELECT id, material
+                FROM "Spendings"
+                WHERE room = :room_id
+                ORDER BY id DESC
+                LIMIT :window
+            ),
+            parts AS (
+                SELECT r.id, btrim(part) AS label
+                FROM recent r, regexp_split_to_table(r.material, ',') AS part
+            )
+            SELECT (array_agg(label ORDER BY id DESC))[1] AS label
+            FROM parts
+            WHERE label <> ''
+            GROUP BY lower(label)
+            ORDER BY COUNT(*) DESC, MAX(id) DESC
+            LIMIT :limit
+        """),
+        {"room_id": room_id, "window": window, "limit": limit},
+    ).fetchall()
+    return [FrequentItemRow(**r._mapping).label for r in rows]
 
 
 def update_expense(

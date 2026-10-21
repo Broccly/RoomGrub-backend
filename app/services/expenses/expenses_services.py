@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import Connection
 from app.models.expenses.expenses_model import (
     get_expenses,
+    get_frequent_items as query_frequent_items,
     insert_expense,
     get_expense_by_id,
     update_expense,
@@ -38,6 +39,10 @@ def list_expenses(
     )
     next_cursor = items[-1]["id"] if len(items) == limit else None
     return {"items": items, "next_cursor": next_cursor}
+
+
+def get_frequent_items(conn: Connection, room_id: int, limit: int) -> dict:
+    return {"items": query_frequent_items(conn, room_id, limit)}
 
 
 def _resolve_participants(conn: Connection, room_id: int, participant_user_ids: list[int] | None) -> list[dict]:

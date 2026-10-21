@@ -144,6 +144,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | Method | Path                                              | Access | Description                               |
 |--------|---------------------------------------------------|--------|-------------------------------------------|
 | GET    | `/api/v1/rooms/{room_id}/expenses`                | Member | Paginated list (cursor-based). Filters: `settled`, `search`, `user_email`, `date_from`, `date_to` |
+| GET    | `/api/v1/rooms/{room_id}/expenses/frequent-items` | Member | `{items}`: most-used item names across the latest 100 expenses (comma-split, case-insensitive, latest spelling); `limit` 1–20, default 6 |
 | POST   | `/api/v1/rooms/{room_id}/expenses`                | Member | Add expense paid by self; optional `participant_user_ids` |
 | GET    | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Member | Expense detail with payer and per-participant split |
 | PATCH  | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin or owner | Edit `material`, `money`, `created_at`, `participant_user_ids` (unsettled only, else 409) |

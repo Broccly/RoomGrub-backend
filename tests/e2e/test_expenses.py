@@ -1,3 +1,4 @@
+from app.models.expenses.expenses_model import insert_expense
 from app.services.expenses import expenses_services
 from tests.e2e.conftest import auth_headers
 
@@ -447,3 +448,69 @@ class TestExpenseOwnerPermissions:
 
         assert test_client.patch(url, json={"material": "x"}, headers=auth_headers(owner)).status_code == 409
         assert test_client.delete(url, headers=auth_headers(owner)).status_code == 409
+
+
+class TestFrequentItems:
+    @staticmethod
+    def _room_with(conn, make_user, make_room, tag: str, materials: list[str]):
+        """A room whose expenses are `materials`, oldest first."""
+        admin = make_user(f"{tag}@example.com")
+        room = make_room(admin)
+        for material in materials:
+            insert_expense(conn, room["id"], admin["id"], admin["email"], material, 10)
+        return admin, room
+
+    @staticmethod
+    def _get(test_client, room, user, query: str = ""):
+        return test_client.get(f"/api/v1/rooms/{room['id']}/expenses/frequent-items{query}", headers=auth_headers(user))
+
+    def test_ranking(self, test_client, conn, make_user, make_room):
+        admin, room = self._room_with(conn, make_user, make_room, "freq-rank", [
+            "Milk",
+            "bread, Eggs",
+            "milk",
+            "Eggs",
+            "  ,Rice , ",
+            "Bread",
+        ])
+
+        r = self._get(test_client, room, admin)
+        assert r.status_code == 200
+        # Bread, Eggs and milk are used twice each, so the most recent wins the tie;
+        # each name keeps its latest spelling, and blanks are dropped.
+        assert r.json() == {"items": ["Bread", "Eggs", "milk", "Rice"]}
+
+    def test_only_the_latest_100_expenses_count(self, test_client, conn, make_user, make_room):
+        admin, room = self._room_with(conn, make_user, make_room, "freq-window", ["Ancient"] + ["Fresh"] * 100)
+
+        assert self._get(test_client, room, admin).json() == {"items": ["Fresh"]}
+
+    def test_limit(self, test_client, conn, make_user, make_room):
+        admin, room = self._room_with(conn, make_user, make_room, "freq-limit", ["A", "B", "C"])
+
+        assert self._get(test_client, room, admin, "?limit=2").json() == {"items": ["C", "B"]}
+        assert len(self._get(test_client, room, admin).json()["items"]) == 3  # default 6
+        assert self._get(test_client, room, admin, "?limit=21").status_code == 422
+        assert self._get(test_client, room, admin, "?limit=0").status_code == 422
+
+    def test_empty_room(self, test_client, make_user, make_room):
+        admin = make_user("freq-empty@example.com")
+        room = make_room(admin)
+
+        assert self._get(test_client, room, admin).json() == {"items": []}
+
+    def test_does_not_shadow_expense_detail(self, test_client, conn, make_user, make_room):
+        admin, room = self._room_with(conn, make_user, make_room, "freq-route", ["Milk"])
+        expense_id = test_client.get(
+            f"/api/v1/rooms/{room['id']}/expenses", headers=auth_headers(admin)
+        ).json()["items"][0]["id"]
+
+        r = test_client.get(f"/api/v1/rooms/{room['id']}/expenses/{expense_id}", headers=auth_headers(admin))
+        assert r.status_code == 200
+        assert r.json()["material"] == "Milk"
+
+    def test_requires_membership(self, test_client, conn, make_user, make_room):
+        admin, room = self._room_with(conn, make_user, make_room, "freq-member", ["Milk"])
+        outsider = make_user("freq-outsider@example.com")
+
+        assert self._get(test_client, room, outsider).status_code == 403

@@ -38,6 +38,11 @@ class ExpenseUpdate(BaseModel):
     participant_user_ids: list[int] | None = None
 
 
+class FrequentItems(BaseModel):
+    # Item names, most used first.
+    items: list[str]
+
+
 class PaginatedExpenses(BaseModel):
     items: list[ExpenseResponse]
     next_cursor: int | None

@@ -8,6 +8,7 @@ from app.api.expenses.schemas import (
     ExpenseUpdate,
     ExpenseResponse,
     ExpenseDetail,
+    FrequentItems,
     PaginatedExpenses,
 )
 from app.services.expenses import expenses_services
@@ -45,6 +46,17 @@ def add_expense(
     return expenses_services.add_expense(
         conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
     )
+
+
+# Declared before /{expense_id}, which would otherwise read "frequent-items" as an id.
+@router.get("/{room_id}/expenses/frequent-items", response_model=FrequentItems)
+def get_frequent_items(
+    room_id: int,
+    limit: int = Query(default=6, ge=1, le=20),
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_member),
+) -> FrequentItems:
+    return expenses_services.get_frequent_items(conn, room_id, limit)
 
 
 @router.get("/{room_id}/expenses/{expense_id}", response_model=ExpenseDetail)

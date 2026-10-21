@@ -14,3 +14,7 @@ class ExpenseRow(BaseModel):
     user_name: str | None
     user_profile: str | None
     settled_at: datetime | None
+
+
+class FrequentItemRow(BaseModel):
+    label: str

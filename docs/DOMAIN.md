@@ -200,12 +200,14 @@ The API uses `pending_amount` for two distinct things:
 |-------|---------|
 | `GET /splits` → `members[].pending_amount`, settle-all verification, exit/remove guards | **Net balance** — the member's active `RoomBalanceSummary` row. Signed: positive = the room owes them, negative = they owe. |
 | `GET /rooms/{id}` → `pending_amount`, `GET /splits` → `total_pending` | **Unsettled spend** in the room — `SUM(money)` over expenses with `settled IS NOT TRUE`. Never negative. |
-| `GET /rooms/{id}/dashboard` → `members[].pending_amount`, `GET /members/{user_id}` → `pending_amount` | **Unsettled spend paid by that member.** Never negative. |
+| `GET /rooms/{id}/dashboard` → `members[].pending_amount`, `GET /members/{user_id}` → `pending_amount`, `GET /splits` → `members[].unsettled_spent` | **Unsettled spend paid by that member.** Never negative. |
 
-`total_spent` (room summary, member detail) is `SUM(money)` over all expenses, settled or not.
+`total_spent` (room summary, member detail, `GET /splits` top level and `members[]`) is `SUM(money)` over all expenses, settled or not — for a member, the ones they paid (`Spendings.user_id`).
+
+`GET /splits` also returns, per member, `unsettled_share` — the sum of their `SpendingSplits.amount_owed` over unsettled expenses — and, for the room, `unsettled_count` and `last_settled_at` (the latest `RoomBalanceSummary.settled_at`, i.e. the last settle-all). It lists **every current member** (zeros when they have no active balance row) plus anyone who left the room with a non-zero active balance (`role: null`). `?include_expenses=false` returns `unsettled_expenses: []` for clients that only need the totals.
 
 ### Suggested settlements
-`GET /splits` returns `settlements[]` — `{from_user_email, to_user_email, amount}` transfers that would zero the active balances. Balances within `0.01` of zero are ignored. These are suggestions for display; nothing is stored.
+`GET /splits` returns `settlements[]` — `{from_user_id, from_user_email, to_user_id, to_user_email, amount}` transfers that would zero the active balances. Balances within `0.01` of zero are ignored. These are suggestions for display; nothing is stored.
 
 ### Settle-all (Admin)
 1. The client sends the balances it is showing: `members[] {user_email, pending_amount}`.

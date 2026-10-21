@@ -3,10 +3,12 @@ from sqlalchemy import Connection
 from app.models.splits.splits_model import (
     get_unsettled_expenses,
     get_member_balances,
+    get_last_settled_at,
     get_pending_for_user,
     settle_all_room,
     get_total_pending_amount
 )
+from app.models.rooms.rooms_model import count_unsettled_expenses, get_total_spent
 import redis
 from app.events.publisher import publish_event
 
@@ -31,8 +33,10 @@ def _simplify_debts(balances: list[dict]) -> list[dict]:
         amount = round(min(-debtor["pending_amount"], creditor["pending_amount"]), 2)
         if amount > TOLERANCE:
             transactions.append({
+                "from_user_id": debtor["user_id"],
                 "from_user_email": debtor["user_email"],
                 "from_name": debtor["name"],
+                "to_user_id": creditor["user_id"],
                 "to_user_email": creditor["user_email"],
                 "to_name": creditor["name"],
                 "amount": amount,
@@ -46,12 +50,23 @@ def _simplify_debts(balances: list[dict]) -> list[dict]:
     return transactions
 
 
-def get_splits_data(conn: Connection, room_id: int) -> dict:
-    members = get_member_balances(conn, room_id)
-    unsettled = get_unsettled_expenses(conn, room_id)
-    settlements = _simplify_debts(members)
-    total_pending = get_total_pending_amount(conn, room_id)
-    return {"members": members, "unsettled_expenses": unsettled, "settlements": settlements, "total_pending": total_pending}
+_MEMBER_AMOUNTS = ("pending_amount", "unsettled_spent", "unsettled_share", "total_spent")
+
+
+def get_splits_data(conn: Connection, room_id: int, include_expenses: bool = True) -> dict:
+    members = [
+        {**m, **{k: round(m[k], 2) for k in _MEMBER_AMOUNTS}}
+        for m in get_member_balances(conn, room_id)
+    ]
+    return {
+        "members": members,
+        "unsettled_expenses": get_unsettled_expenses(conn, room_id) if include_expenses else [],
+        "settlements": _simplify_debts(members),
+        "total_pending": round(float(get_total_pending_amount(conn, room_id)), 2),
+        "unsettled_count": count_unsettled_expenses(conn, room_id),
+        "total_spent": round(get_total_spent(conn, room_id), 2),
+        "last_settled_at": get_last_settled_at(conn, room_id),
+    }
 
 
 def settle_all(conn: Connection, room_id: int, members: list[dict], redis_client: redis.Redis) -> None:

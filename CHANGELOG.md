@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `REFRESH_TOKEN_EXPIRY_DAYS` env var (default 90)
 - e2e coverage for rotation, the grace window, reuse detection, expiry, logout and cleanup (`tests/e2e/test_auth.py`)
 - `PATCH /rooms/{room_id}/expenses/{expense_id}` accepts `participant_user_ids` to change who an expense is split between. The list must be non-empty, all room members, and include the payer (`400` otherwise); balances are re-split in the same transaction
+- `GET /rooms/{room_id}/splits` returns what the app's Home screen needs in one call: per member `user_id`, `role`, `unsettled_spent`, `unsettled_share`, `total_spent`; per settlement `from_user_id` / `to_user_id`; and room `unsettled_count`, `total_spent`, `last_settled_at`. `?include_expenses=false` skips the `unsettled_expenses` list. All amounts are rounded to 2 decimals
 
 ### Fixed
 
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `GET /splits` lists every current room member, with zeros when they have no balance yet (a new room used to return no members), plus anyone who left with a non-zero balance (`role: null`). `total_pending` is typed as a float instead of an int
 - Room-scoped routes return `404 Room not found` for a room that doesn't exist (e.g. deleted) instead of `403`, so clients can tell it apart from a room they aren't a member of, which stays `403 Not a member of this room`. The extra lookup runs only when access is denied (`require_room_member`)
 - `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` are no longer Admin-only: the expense's owner (its payer, `Spendings.user_id`) can also edit — participants included — and delete it while it is unsettled. Other members get `403`
 - `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` return `409 Settled expenses can't be changed` for a settled expense. Previously they reversed its splits against the members' current balances (`expenses_services.edit_expense`, `remove_expense`)

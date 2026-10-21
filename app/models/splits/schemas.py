@@ -11,7 +11,12 @@ class UnsettledExpenseRow(BaseModel):
 
 
 class MemberBalanceRow(BaseModel):
+    user_id: int
     user_email: str
     name: str | None
     profile: str | None
+    role: str | None
     pending_amount: float
+    unsettled_spent: float
+    unsettled_share: float
+    total_spent: float

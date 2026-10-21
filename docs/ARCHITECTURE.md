@@ -153,7 +153,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Splits
 | Method | Path                                         | Access | Description                               |
 |--------|----------------------------------------------|--------|-------------------------------------------|
-| GET    | `/api/v1/rooms/{room_id}/splits`             | Member | Member balances, unsettled expenses, suggested settlements, `total_pending` |
+| GET    | `/api/v1/rooms/{room_id}/splits`             | Member | Member balances and spend/share totals, unsettled expenses (skip with `?include_expenses=false`), suggested settlements, room `total_pending` / `total_spent` / `unsettled_count` / `last_settled_at` |
 | POST   | `/api/v1/rooms/{room_id}/splits/settle-all`  | Admin  | Settle the whole room after verifying client-sent balances |
 
 ### Members

@@ -1,5 +1,6 @@
 import json
 
+from app.models.members.members_model import remove_user_room
 from tests.e2e.conftest import auth_headers
 
 ROOM_ID = 999999
@@ -144,3 +145,119 @@ class TestSplitsAuthenticated:
         assert payload["settlements"] == [
             {"from_name": "Carol", "to_name": "Bob", "amount": 30.0}
         ]
+
+
+class TestSplitsHomeFields:
+    @staticmethod
+    def _add(test_client, room, payer, money, participants):
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "item", "money": money, "participant_user_ids": [p["id"] for p in participants]},
+            headers=auth_headers(payer),
+        )
+        assert r.status_code == 201
+
+    @staticmethod
+    def _settle(test_client, room, admin):
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/splits/settle-all", json={"members": []}, headers=auth_headers(admin)
+        )
+        assert r.status_code == 204
+
+    def test_per_member_and_room_totals(self, test_client, make_user, make_room, add_member):
+        a = make_user("home-a@example.com", name="A")
+        b = make_user("home-b@example.com", name="B")
+        c = make_user("home-c@example.com", name="C")
+        room = make_room(a)
+        add_member(room["id"], b)
+        add_member(room["id"], c)
+
+        self._add(test_client, room, a, 90, [a, b, c])  # settled below
+        self._add(test_client, room, b, 30, [b, c])  # settled below
+        self._settle(test_client, room, a)
+        self._add(test_client, room, a, 60, [a, b])  # the only unsettled one
+
+        r = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(b))
+        assert r.status_code == 200
+        body = r.json()
+
+        members = {m["user_id"]: m for m in body["members"]}
+        assert members[a["id"]] == {
+            "user_id": a["id"], "user_email": a["email"], "name": "A", "profile": None, "role": "Admin",
+            "pending_amount": 30.0, "unsettled_spent": 60.0, "unsettled_share": 30.0, "total_spent": 150.0,
+        }
+        assert members[b["id"]] == {
+            "user_id": b["id"], "user_email": b["email"], "name": "B", "profile": None, "role": "Member",
+            "pending_amount": -30.0, "unsettled_spent": 0.0, "unsettled_share": 30.0, "total_spent": 30.0,
+        }
+        assert members[c["id"]] == {
+            "user_id": c["id"], "user_email": c["email"], "name": "C", "profile": None, "role": "Member",
+            "pending_amount": 0.0, "unsettled_spent": 0.0, "unsettled_share": 0.0, "total_spent": 0.0,
+        }
+        assert [m["user_id"] for m in body["members"]] == [a["id"], c["id"], b["id"]]  # pending_amount DESC
+
+        assert body["unsettled_count"] == 1
+        assert body["total_pending"] == 60.0
+        assert body["total_spent"] == 180.0
+        assert body["last_settled_at"] is not None
+        assert body["settlements"] == [{
+            "from_user_id": b["id"], "from_user_email": b["email"], "from_name": "B",
+            "to_user_id": a["id"], "to_user_email": a["email"], "to_name": "A",
+            "amount": 30.0,
+        }]
+
+    def test_new_room_lists_every_member_with_zeros(self, test_client, make_user, make_room, add_member):
+        admin = make_user("fresh-admin@example.com")
+        member = make_user("fresh-member@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+
+        body = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(admin)).json()
+
+        assert {m["user_id"] for m in body["members"]} == {admin["id"], member["id"]}
+        for m in body["members"]:
+            assert (m["pending_amount"], m["unsettled_spent"], m["unsettled_share"], m["total_spent"]) == (0, 0, 0, 0)
+        assert body["unsettled_count"] == 0
+        assert body["total_pending"] == 0
+        assert body["total_spent"] == 0
+        assert body["last_settled_at"] is None
+        assert body["settlements"] == []
+
+    def test_include_expenses_false_skips_only_the_list(self, test_client, make_user, make_room, add_member):
+        admin = make_user("lite-admin@example.com")
+        member = make_user("lite-member@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        self._add(test_client, room, admin, 50, [admin, member])
+
+        url = f"/api/v1/rooms/{room['id']}/splits"
+        full = test_client.get(url, headers=auth_headers(admin)).json()
+        lite = test_client.get(f"{url}?include_expenses=false", headers=auth_headers(admin)).json()
+
+        assert len(full["unsettled_expenses"]) == 1
+        assert lite["unsettled_expenses"] == []
+        assert {k: v for k, v in lite.items() if k != "unsettled_expenses"} == {
+            k: v for k, v in full.items() if k != "unsettled_expenses"
+        }
+
+    def test_member_who_left_is_listed_only_while_they_have_a_balance(
+        self, test_client, conn, make_user, make_room, add_member
+    ):
+        admin = make_user("left-admin@example.com")
+        owes = make_user("left-owes@example.com")
+        clear = make_user("left-clear@example.com")
+        room = make_room(admin)
+        add_member(room["id"], owes)
+        add_member(room["id"], clear)
+        self._settle(test_client, room, admin)  # gives everyone a 0 active balance row
+        self._add(test_client, room, admin, 60, [admin, owes])
+
+        remove_user_room(conn, room["id"], owes["id"])
+        remove_user_room(conn, room["id"], clear["id"])
+
+        body = test_client.get(f"/api/v1/rooms/{room['id']}/splits", headers=auth_headers(admin)).json()
+        members = {m["user_id"]: m for m in body["members"]}
+
+        assert set(members) == {admin["id"], owes["id"]}
+        assert members[owes["id"]]["role"] is None
+        assert members[owes["id"]]["pending_amount"] == -30.0

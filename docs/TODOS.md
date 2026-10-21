@@ -9,7 +9,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] `expenses_model.get_expenses` and `update_expense` assemble their `WHERE` / `SET` clauses with f-strings. Values are bound and the fragments are static, so it is not injectable, but it breaks the "no f-string SQL" rule — rewrite as static parameterized queries, as was done for the splits filters in 1.0.0.
 
 ### Stale artifacts
-- [ ] Regenerate `db/schema.sql`. It stops at migration `20260724130000` — it still has `push_subscriptions` and no `fcm_tokens` — and it was dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
+- [ ] `db/schema.sql` is current up to migration `20261005120000`, but it is dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
 - [ ] `tests/e2e/test_notifications.py` still exercises the deleted `/rooms/{room_id}/push-subscriptions` routes and the unmounted notifications router. Rewrite it against `POST` / `DELETE /api/v1/notifications/fcm-token`.
 - [ ] Drop `alembic` from `requirements.txt` and `pyproject.toml` — migrations are dbmate.
 - [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so the README's install-then-`pytest -v` steps fail on a fresh virtualenv. Add it as a dev dependency.

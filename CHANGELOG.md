@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Room-scoped routes return `404 Room not found` for a room that doesn't exist (e.g. deleted) instead of `403`, so clients can tell it apart from a room they aren't a member of, which stays `403 Not a member of this room`. The extra lookup runs only when access is denied (`require_room_member`)
 - `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` are no longer Admin-only: the expense's owner (its payer, `Spendings.user_id`) can also edit — participants included — and delete it while it is unsettled. Other members get `403`
 - `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` return `409 Settled expenses can't be changed` for a settled expense. Previously they reversed its splits against the members' current balances (`expenses_services.edit_expense`, `remove_expense`)
 - **Access tokens now live 15 minutes instead of 24 hours.** `JWT_ACCESS_EXPIRY_MINUTES` (default 15) replaces `JWT_EXPIRY_HOURS`, which is no longer read. Clients must call `/auth/refresh` on `401 Token expired`; a client that does not will be signed out every 15 minutes

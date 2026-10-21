@@ -60,7 +60,17 @@ class TestRoomsAuthenticated:
     def test_get_room_summary_not_found(self, test_client, make_user):
         user = make_user("nf@example.com")
         r = test_client.get(f"/api/v1/rooms/{ROOM_ID}", headers=auth_headers(user))
-        assert r.status_code == 403  # not a member of a nonexistent room
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Room not found"
+
+    def test_get_room_summary_of_room_you_are_not_in_is_403(self, test_client, make_user, make_room):
+        owner = make_user("owner-403@example.com")
+        outsider = make_user("outsider-403@example.com")
+        room = make_room(owner)
+
+        r = test_client.get(f"/api/v1/rooms/{room['id']}", headers=auth_headers(outsider))
+        assert r.status_code == 403
+        assert r.json()["detail"] == "Not a member of this room"
 
     def test_get_room_dashboard(self, test_client, make_user, make_room, add_member, make_expense):
         admin = make_user("admin3@example.com")
@@ -87,7 +97,7 @@ class TestRoomsAuthenticated:
         assert r.status_code == 204
 
         follow_up = test_client.get(f"/api/v1/rooms/{room['id']}", headers=auth_headers(admin))
-        assert follow_up.status_code == 403  # membership row is gone too
+        assert follow_up.status_code == 404  # the room itself is gone
 
     def test_delete_room_blocked_by_unsettled_expenses(self, test_client, make_user, make_room, make_expense):
         admin = make_user("admin5@example.com")

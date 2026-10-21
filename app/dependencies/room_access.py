@@ -26,6 +26,12 @@ def require_room_member(
     ).fetchone()
 
     if not row:
+        # Lets clients tell a deleted room (drop it) from one they were removed from.
+        room_exists = conn.execute(
+            text('SELECT 1 FROM "Rooms" WHERE id = :room_id'), {"room_id": room_id}
+        ).fetchone()
+        if not room_exists:
+            raise HTTPException(status_code=404, detail="Room not found")
         raise HTTPException(status_code=403, detail="Not a member of this room")
 
     membership = {"id": row.id, "role": row.role}

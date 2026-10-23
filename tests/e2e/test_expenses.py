@@ -559,10 +559,18 @@ class TestFrequentItems:
         assert self._get(test_client, room, admin).json() == {"items": ["Fresh"]}
 
     def test_limit(self, test_client, conn, make_user, make_room):
-        admin, room = self._room_with(conn, make_user, make_room, "freq-limit", ["A", "B", "C"])
+        # Seven distinct items, one more than the default, so the default has to cut the list.
+        # Milk ×3, Bread ×2, Eggs ×2, then Rice, Oil, Sugar, Tea once each.
+        admin, room = self._room_with(conn, make_user, make_room, "freq-limit", [
+            "Milk", "Bread", "Milk", "Eggs", "Rice", "Milk", "Bread", "Oil", "Sugar", "Tea", "Eggs",
+        ])
 
-        assert self._get(test_client, room, admin, "?limit=2").json() == {"items": ["C", "B"]}
-        assert len(self._get(test_client, room, admin).json()["items"]) == 3  # default 6
+        # Most used first; Eggs beats Bread on the tie because it was used more recently.
+        assert self._get(test_client, room, admin, "?limit=2").json() == {"items": ["Milk", "Eggs"]}
+        # Default 6 drops Rice: used once, and the oldest of the single-use items.
+        assert self._get(test_client, room, admin).json() == {
+            "items": ["Milk", "Eggs", "Bread", "Tea", "Sugar", "Oil"],
+        }
         assert self._get(test_client, room, admin, "?limit=21").status_code == 422
         assert self._get(test_client, room, admin, "?limit=0").status_code == 422
 

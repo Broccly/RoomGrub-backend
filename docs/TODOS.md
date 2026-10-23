@@ -5,7 +5,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 ## Open
 
 ### Code vs. convention
-- [ ] **Services raise `HTTPException`.** The rule (AGENTS.md) is: routers and dependencies raise `HTTPException`; services raise plain exceptions that routers convert. Today `rooms`, `expenses`, `members`, `splits` and `invites` services — and `app/utils/auth_providers.py` — raise `HTTPException` directly. Refactor to plain exceptions (`ValueError` → 400, `PermissionError` → 403, a not-found error → 404, invite gone → 410) with the conversion in each router, keeping status codes and messages unchanged so the e2e tests still pass.
+- [ ] **Services raise `HTTPException`.** The rule (AGENTS.md) is: routers and dependencies raise `HTTPException`; services raise plain exceptions that routers convert. Today `rooms`, `expenses`, `members`, `splits` and `invites` services — and `app/utils/auth_providers.py` — raise `HTTPException` directly (`members_services.exit_room` and `remove_member` are already converted). Refactor to plain exceptions (`ValueError` → 400, `PermissionError` → 403, a not-found error → 404, invite gone → 410) with the conversion in each router, keeping status codes and messages unchanged so the e2e tests still pass.
 - [ ] `expenses_model.get_expenses` and `update_expense` assemble their `WHERE` / `SET` clauses with f-strings. Values are bound and the fragments are static, so it is not injectable, but it breaks the "no f-string SQL" rule — rewrite as static parameterized queries, as was done for the splits filters in 1.0.0.
 
 ### Stale artifacts
@@ -90,8 +90,8 @@ Designed but deliberately not built: the `WRITE_PRECOMPUTED_SPLITS` feature flag
 ### Members
 - [x] `GET /api/v1/rooms/{room_id}/members`, `GET .../members/{user_id}`
 - [x] `PATCH .../members/{user_id}/role` — Admin, no self-demotion
-- [x] `DELETE .../members/{user_id}` — Admin, not self, zero-balance guard
-- [x] `DELETE .../members/me` — non-admin, zero-balance guard
+- [x] `DELETE .../members/{user_id}` — Admin, not self, no-unsettled-expenses guard
+- [x] `DELETE .../members/me` — non-admin, no-unsettled-expenses guard
 
 ### Invites
 - [x] `POST /api/v1/rooms/{room_id}/invites` — Admin

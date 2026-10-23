@@ -1,5 +1,5 @@
 import redis
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from db.redis_client import redis_conn
@@ -52,7 +52,12 @@ def exit_room(
     membership: dict = Depends(require_room_non_admin),
     redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    members_services.exit_room(conn, room_id, membership["user"], redis_client)
+    try:
+        members_services.exit_room(conn, room_id, membership["user"], redis_client)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/{room_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -63,4 +68,9 @@ def remove_member(
     membership: dict = Depends(require_room_admin),
     redis_client: redis.Redis = Depends(redis_conn),
 ) -> None:
-    members_services.remove_member(conn, room_id, user_id, membership["user"], redis_client)
+    try:
+        members_services.remove_member(conn, room_id, user_id, membership["user"], redis_client)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

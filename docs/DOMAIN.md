@@ -82,7 +82,7 @@ Unique on `(spending_id, user_id)`.
 - Existing rows were backfilled only for expenses that were still unsettled at migration time; older settled expenses have no splits.
 
 ### RoomBalanceSummary
-A member's running net position in a room, kept as a **historical ledger**: one **active** row per `(room, user)` plus any number of **closed** rows from past settle-alls. This is what `GET /splits`, settle-all verification and the exit/remove guards read.
+A member's running net position in a room, kept as a **historical ledger**: one **active** row per `(room, user)` plus any number of **closed** rows from past settle-alls. This is what `GET /splits` and settle-all verification read.
 
 | Field          | Type          | Notes                                                        |
 |----------------|---------------|--------------------------------------------------------------|
@@ -198,7 +198,7 @@ The API uses `pending_amount` for two distinct things:
 
 | Where | Meaning |
 |-------|---------|
-| `GET /splits` → `members[].pending_amount`, settle-all verification, exit/remove guards | **Net balance** — the member's active `RoomBalanceSummary` row. Signed: positive = the room owes them, negative = they owe. |
+| `GET /splits` → `members[].pending_amount`, settle-all verification | **Net balance** — the member's active `RoomBalanceSummary` row. Signed: positive = the room owes them, negative = they owe. |
 | `GET /rooms/{id}` → `pending_amount`, `GET /splits` → `total_pending` | **Unsettled spend** in the room — `SUM(money)` over expenses with `settled IS NOT TRUE`. Never negative. |
 | `GET /rooms/{id}/dashboard` → `members[].pending_amount`, `GET /members/{user_id}` → `pending_amount`, `GET /splits` → `members[].unsettled_spent` | **Unsettled spend paid by that member.** Never negative. |
 
@@ -220,7 +220,9 @@ The API uses `pending_amount` for two distinct things:
 Settlement is all-or-nothing per room: there is no single-member settle, no partial or filtered settle, and no "contribute" (lump-sum credit). Past settlements are the closed `RoomBalanceSummary` rows; there is no endpoint that lists them yet.
 
 ### Leaving and removing members
-- A member cannot exit, and an Admin cannot remove a member, while that member's net balance is non-zero — whether they owe or are owed. Settle the room first.
+- A member cannot exit, and an Admin cannot remove a member, while that member has a `SpendingSplits` row on any unsettled expense in the room — even if their net balance is zero. Settle the room first.
+- Why not just a zero net balance: unsettled expenses can still be edited or deleted, and that reverses and rebuilds their splits. If a member in the split had left, the rebuild would drop a departed payer's credit or move a departed member's balance. Settled expenses can't be changed, so after a settle-all nothing can touch a departed member's balance.
+- This also guarantees a zero net balance: a balance only moves through unsettled expenses the member is in, and settle-all zeroes it while settling every expense.
 - Removing a membership does not touch the member's expenses or splits.
 
 ### Room Deletion (Admin)

@@ -163,8 +163,8 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | GET    | `/api/v1/rooms/{room_id}/members`                   | Member    | List members                         |
 | GET    | `/api/v1/rooms/{room_id}/members/{user_id}`         | Member    | Member detail, totals, pending expenses |
 | PATCH  | `/api/v1/rooms/{room_id}/members/{user_id}/role`    | Admin     | Change role                          |
-| DELETE | `/api/v1/rooms/{room_id}/members/me`                | Non-admin | Exit room (blocked with outstanding balance) |
-| DELETE | `/api/v1/rooms/{room_id}/members/{user_id}`         | Admin     | Remove member (blocked with outstanding balance) |
+| DELETE | `/api/v1/rooms/{room_id}/members/me`                | Non-admin | Exit room (blocked while in an unsettled expense) |
+| DELETE | `/api/v1/rooms/{room_id}/members/{user_id}`         | Admin     | Remove member (blocked while in an unsettled expense) |
 
 ### Invites
 | Method | Path                                | Access | Description                     |

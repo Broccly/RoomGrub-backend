@@ -110,3 +110,18 @@ def get_my_membership(conn: Connection, room_id: int, user_id: int) -> dict | No
         {"room_id": room_id, "user_id": user_id},
     ).fetchone()
     return MyMembershipRow(**row._mapping).model_dump() if row else None
+
+
+def has_unsettled_splits(conn: Connection, room_id: int, user_id: int) -> bool:
+    return conn.execute(
+        text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM "SpendingSplits" ss
+                JOIN "Spendings" s ON s.id = ss.spending_id
+                WHERE s.room = :room_id AND ss.user_id = :user_id
+                  AND (s.settled IS NULL OR s.settled = FALSE)
+            )
+        """),
+        {"room_id": room_id, "user_id": user_id},
+    ).scalar_one()

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Changed
+
+- Exiting a room (`DELETE /rooms/{room_id}/members/me`) and removing a member (`DELETE /rooms/{room_id}/members/{user_id}`) are now blocked (`400`) while the member is part of any unsettled expense, even when their net balance is zero. This replaces the net-balance check, which it covers: a balance only moves through unsettled expenses. Unsettled expenses can still be edited or deleted, which would otherwise change a departed member's balance or drop a departed payer's credit. Settle the room first (`members_model.has_unsettled_splits`)
+- `members_services.exit_room` and `remove_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
 
 ## [1.3.0] - 2026-10-21
 ### Added

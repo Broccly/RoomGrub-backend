@@ -237,8 +237,8 @@ All three read `room_id` from the path.
 | Dependency | Passes when | Otherwise |
 |------------|-------------|-----------|
 | `require_room_member` | Caller has a `UserRooms` row for the room | `404 Room not found` if the room doesn't exist, else `403 Not a member of this room` |
-| `require_room_admin` | Member **and** role is `Admin` | `403 Admin role required` |
-| `require_room_non_admin` | Member **and** role is not `Admin` | `403 Admins cannot perform this action` |
+| `require_room_admin` | Member **and** role is `Admin` | `404 Room not found` / `403 Not a member of this room` as above, else `403 Admin role required` |
+| `require_room_non_admin` | Member **and** role is not `Admin` | `404 Room not found` / `403 Not a member of this room` as above, else `403 Admins cannot perform this action` |
 
 Each returns a membership dict:
 

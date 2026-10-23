@@ -78,7 +78,7 @@ Unique on `(spending_id, user_id)`.
 
 - Created with an explicit `participant_user_ids` list → only those members get a row.
 - Created without one → every current room member gets a row.
-- The payer gets `amount_paid` only if they are among the participants. If the payer is left out of `participant_user_ids`, no row records the payment.
+- The payer must be among the participants, so the payer's row always records the payment (`amount_paid = money`). Expenses created before this rule may have no payer row; they can't get a money-only edit until `participant_user_ids` including the payer is sent.
 - Existing rows were backfilled only for expenses that were still unsettled at migration time; older settled expenses have no splits.
 
 ### RoomBalanceSummary
@@ -175,7 +175,7 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 
 ### Adding an expense
 1. `money` must be greater than 0.
-2. Resolve participants: the given `participant_user_ids` (each must be a member of the room, otherwise 400), or all current members if omitted.
+2. Resolve participants: the given `participant_user_ids` (each must be a member of the room and the list must include the payer, otherwise 400), or all current members if omitted.
 3. Insert the `Spendings` row.
 4. Write one `SpendingSplits` row per participant: `amount_owed = round(money / n, 2)`; `amount_paid = money` on the payer's row, `0` elsewhere.
 5. Shift each participant's active `RoomBalanceSummary.pending_amount` by `amount_paid - amount_owed`.
@@ -188,8 +188,10 @@ Because each share is rounded to 2 decimals, the shares of an expense may not su
 ### Editing and deleting an expense (Admin or owner)
 - Allowed for any Admin, and for the expense's **owner** — its payer, `Spendings.user_id` (so a member owns an expense an Admin added for them). Anyone else gets `403`. Owners can change everything an Admin can, participants included.
 - Only **unsettled** expenses can be changed. Editing or deleting a settled one returns `409`: its splits were already paid out by a settle-all, so reversing them would corrupt the current balances.
-- Changing `money` and/or `participant_user_ids` reverses the old splits and balance shifts, then re-applies them. The new amount is used, and the new participants if sent, otherwise the existing ones. The payer is always `Spendings.user_id` and can't be changed.
-- `participant_user_ids` on edit must be non-empty, all current room members, and must include the payer (unless the payer has left the room); otherwise `400`. Unlike creation, an empty list does not mean "everyone".
+- The payer must still be a room member. If they have left, editing or deleting returns `400`: both reverse the splits, which would move a departed payer's balance. Exit/remove rules make this reachable only for older data.
+- Editable fields: `material`, `money`, `created_at`, `participant_user_ids`. The payer is always `Spendings.user_id` and can't be changed: any other field in the body, such as `user_id`, is rejected with `422`.
+- Changing `money` and/or `participant_user_ids` reverses the old splits and balance shifts, then re-applies them. The new amount is used, and the new participants if sent, otherwise the existing split's members exactly as they are. A money-only edit on an expense whose split doesn't include the payer returns `400`.
+- `participant_user_ids` on edit must be non-empty, all current room members, and must include the payer; otherwise `400`. Unlike creation, an empty list does not mean "everyone".
 - Changing only `material` / `created_at` leaves splits untouched.
 - Deleting reverses the balance shifts and removes the expense; its splits go with it.
 

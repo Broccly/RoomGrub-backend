@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Exiting a room (`DELETE /rooms/{room_id}/members/me`) and removing a member (`DELETE /rooms/{room_id}/members/{user_id}`) are now blocked (`400`) while the member is part of any unsettled expense, even when their net balance is zero. This replaces the net-balance check, which it covers: a balance only moves through unsettled expenses. Unsettled expenses can still be edited or deleted, which would otherwise change a departed member's balance or drop a departed payer's credit. Settle the room first (`members_model.has_unsettled_splits`)
 - `members_services.exit_room` and `remove_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
+- `POST /rooms/{room_id}/expenses` and `/expenses/for-member` reject (`400`) a `participant_user_ids` list that leaves out the payer. Such an expense recorded no payment, so its balances didn't add up
+- Editing or deleting an expense whose payer has left the room returns `400`
+- A money-only edit keeps the expense's existing split exactly, and returns `400` if that split doesn't include the payer (older expenses created without them)
+- `PATCH /rooms/{room_id}/expenses/{expense_id}` rejects (`422`) any field besides `material`, `money`, `created_at` and `participant_user_ids`. Sending a payer such as `user_id` used to be silently ignored; the payer can't be changed
+- `expenses_services.add_expense` and `add_expense_for_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
+
+### Fixed
+
+- A money-only expense edit dropped split members who had left the room, and the payer's credit with them, so the room's balances no longer summed to zero
+- Editing participants of an expense whose payer had left skipped the "payer must be in the split" check and lost the payer's credit
 
 ## [1.3.0] - 2026-10-21
 ### Added

@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from app.models.expenses.expenses_model import insert_expense
 from app.services.expenses import expenses_services
 from tests.e2e.conftest import auth_headers
@@ -322,6 +323,18 @@ class TestEditExpenseParticipants:
             admin["email"]: 30, m1["email"]: 0, m2["email"]: -30,
         }
 
+    def test_payer_cannot_be_changed(self, test_client, make_user, make_room, add_member):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "payer")
+
+        for body in ({"user_id": m1["id"]}, {"user_id": m1["id"], "money": 90}, {"payer_user_id": m1["id"]}):
+            r = test_client.patch(url, json=body, headers=headers)
+            assert r.status_code == 422
+
+        assert test_client.get(url, headers=headers).json()["payer_user_id"] == admin["id"]
+        assert self._balances(test_client, room, headers) == {
+            admin["email"]: 60, m1["email"]: -30, m2["email"]: -30,
+        }
+
     def test_invalid_participant_lists_are_rejected(self, test_client, make_user, make_room, add_member):
         admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "bad")
         outsider = make_user("bad-outsider@example.com")
@@ -340,29 +353,89 @@ class TestEditExpenseParticipants:
             admin["email"]: 60, m1["email"]: -30, m2["email"]: -30,
         }
 
-    def test_money_edit_keeps_splits_when_payer_is_outside_them(
-        self, test_client, make_user, make_room, add_member
-    ):
-        admin = make_user("outside-admin@example.com")
-        m1 = make_user("outside-m1@example.com")
-        m2 = make_user("outside-m2@example.com")
-        room = make_room(admin)
-        add_member(room["id"], m1)
-        add_member(room["id"], m2)
-        headers = auth_headers(admin)
-        # Creation still allows leaving the payer out of the split.
-        expense = test_client.post(
-            f"/api/v1/rooms/{room['id']}/expenses",
-            json={"material": "Gift", "money": 40, "participant_user_ids": [m1["id"], m2["id"]]},
-            headers=headers,
-        ).json()
-        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+    def test_money_edit_keeps_the_existing_split(self, test_client, make_user, make_room, add_member):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "keep")
+        test_client.patch(url, json={"participant_user_ids": [admin["id"], m1["id"]]}, headers=headers)
 
         r = test_client.patch(url, json={"money": 60}, headers=headers)
         assert r.status_code == 200
 
         participants = test_client.get(url, headers=headers).json()["participants"]
+        assert {p["user_id"]: p["amount_owed"] for p in participants} == {admin["id"]: 30, m1["id"]: 30}
+        assert self._balances(test_client, room, headers) == {
+            admin["email"]: 30, m1["email"]: -30, m2["email"]: 0,
+        }
+
+    def test_money_edit_rejected_when_payer_is_outside_the_split(
+        self, test_client, make_user, make_room, add_member, conn
+    ):
+        admin, m1, m2, room, headers, url = self._setup(test_client, make_user, make_room, add_member, "outside")
+        # Expenses created before the payer was required in the split have no payer row.
+        expense_id = int(url.rsplit("/", 1)[1])
+        conn.execute(
+            text('DELETE FROM "SpendingSplits" WHERE spending_id = :id AND user_id = :uid'),
+            {"id": expense_id, "uid": admin["id"]},
+        )
+
+        r = test_client.patch(url, json={"money": 60}, headers=headers)
+        assert r.status_code == 400
+        assert "participant_user_ids" in r.json()["detail"]
+
+        participants = test_client.get(url, headers=headers).json()["participants"]
         assert {p["user_id"]: p["amount_owed"] for p in participants} == {m1["id"]: 30, m2["id"]: 30}
+
+    def test_edit_and_delete_rejected_when_payer_left(
+        self, test_client, make_user, make_room, add_member, make_expense, conn
+    ):
+        admin, m1, m2, room, headers, _ = self._setup(test_client, make_user, make_room, add_member, "left")
+        expense = make_expense(room["id"], m1["email"], money=30.0)
+        url = f"/api/v1/rooms/{room['id']}/expenses/{expense['id']}"
+        # The API no longer lets a member with unsettled expenses leave; simulate older data.
+        conn.execute(
+            text('DELETE FROM "UserRooms" WHERE room_id = :room_id AND user_id = :uid'),
+            {"room_id": room["id"], "uid": m1["id"]},
+        )
+        before = self._balances(test_client, room, headers)
+
+        for r in (
+            test_client.patch(url, json={"money": 60}, headers=headers),
+            test_client.patch(url, json={"participant_user_ids": [admin["id"], m2["id"]]}, headers=headers),
+            test_client.delete(url, headers=headers),
+        ):
+            assert r.status_code == 400
+            assert r.json()["detail"] == "The person who paid for this expense has left the room, so it can't be changed"
+
+        assert self._balances(test_client, room, headers) == before
+
+
+class TestAddExpensePayerInSplit:
+    def test_add_expense_requires_payer_in_participants(self, test_client, make_user, make_room, add_member):
+        admin = make_user("payer-add-admin@example.com")
+        m1 = make_user("payer-add-m1@example.com")
+        room = make_room(admin)
+        add_member(room["id"], m1)
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses",
+            json={"material": "Gift", "money": 40, "participant_user_ids": [m1["id"]]},
+            headers=auth_headers(admin),
+        )
+        assert r.status_code == 400
+        assert r.json()["detail"] == "The payer must be part of the split"
+
+    def test_add_for_member_requires_payer_in_participants(self, test_client, make_user, make_room, add_member):
+        admin = make_user("payer-for-admin@example.com")
+        m1 = make_user("payer-for-m1@example.com")
+        room = make_room(admin)
+        add_member(room["id"], m1)
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/expenses/for-member",
+            json={"material": "Gift", "money": 40, "user_id": m1["id"], "participant_user_ids": [admin["id"]]},
+            headers=auth_headers(admin),
+        )
+        assert r.status_code == 400
+        assert r.json()["detail"] == "The payer must be part of the split"
 
 
 class TestExpenseOwnerPermissions:

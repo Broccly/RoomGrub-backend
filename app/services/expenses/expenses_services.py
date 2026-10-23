@@ -45,14 +45,26 @@ def get_frequent_items(conn: Connection, room_id: int, limit: int) -> dict:
     return {"items": query_frequent_items(conn, room_id, limit)}
 
 
-def _resolve_participants(conn: Connection, room_id: int, participant_user_ids: list[int] | None) -> list[dict]:
+def _load_participants(
+    conn: Connection, room_id: int, payer_id: int, participant_user_ids: list[int]
+) -> list[dict]:
+    ids = list(dict.fromkeys(participant_user_ids))
+    members = get_members_by_user_ids(conn, room_id, ids)
+    found = {m["user_id"] for m in members}
+    missing = [uid for uid in ids if uid not in found]
+    if missing:
+        raise ValueError(f"Not room members: {missing}")
+    # Only the payer's row records the payment; without it the expense's balances don't add up.
+    if payer_id not in found:
+        raise ValueError("The payer must be part of the split")
+    return members
+
+
+def _resolve_participants(
+    conn: Connection, room_id: int, payer_id: int, participant_user_ids: list[int] | None
+) -> list[dict]:
     if participant_user_ids:
-        members = get_members_by_user_ids(conn, room_id, participant_user_ids)
-        found_ids = {m["user_id"] for m in members}
-        missing = [uid for uid in participant_user_ids if uid not in found_ids]
-        if missing:
-            raise HTTPException(status_code=400, detail=f"Not room members: {missing}")
-        return members
+        return _load_participants(conn, room_id, payer_id, participant_user_ids)
     return get_members(conn, room_id)
 
 
@@ -60,7 +72,7 @@ def _apply_splits_and_balances(
     conn: Connection, room_id: int, spending_id: int, payer_user_id: int, money: float, participants: list[dict]
 ) -> None:
     if not participants:
-        raise HTTPException(status_code=400, detail="Room has no members to split with")
+        raise ValueError("Room has no members to split with")
     amount_owed = round(money / len(participants), 2)
     splits = [
         {
@@ -75,12 +87,10 @@ def _apply_splits_and_balances(
         upsert_room_balance_summary_delta(conn, room_id, s["user_id"], s["amount_paid"] - s["amount_owed"])
 
 
-def _reverse_splits_and_balances(conn: Connection, room_id: int, spending_id: int) -> list[dict]:
-    old_splits = get_expense_splits(conn, spending_id)
-    for s in old_splits:
+def _reverse_splits_and_balances(conn: Connection, room_id: int, spending_id: int) -> None:
+    for s in get_expense_splits(conn, spending_id):
         upsert_room_balance_summary_delta(conn, room_id, s["user_id"], -(s["amount_paid"] - s["amount_owed"]))
     delete_spending_splits(conn, spending_id)
-    return old_splits
 
 
 def _notify_expense_added(
@@ -108,8 +118,8 @@ def add_expense(
     participant_user_ids: list[int] | None = None,
 ) -> dict:
     if money <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
-    participants = _resolve_participants(conn, room_id, participant_user_ids)
+        raise ValueError("Amount must be greater than 0")
+    participants = _resolve_participants(conn, room_id, current_user["id"], participant_user_ids)
     expense = insert_expense(conn, room_id, current_user["id"], current_user["email"], material, money, created_at)
     _apply_splits_and_balances(conn, room_id, expense["id"], current_user["id"], money, participants)
     _notify_expense_added(conn, room_id, expense, current_user, money, participants)
@@ -127,11 +137,11 @@ def add_expense_for_member(
     participant_user_ids: list[int] | None = None,
 ) -> dict:
     if money <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+        raise ValueError("Amount must be greater than 0")
     member = get_member_by_user_id(conn, room_id, user_id)
     if member is None:
-        raise HTTPException(status_code=404, detail="Member not found")
-    participants = _resolve_participants(conn, room_id, participant_user_ids)
+        raise LookupError("Member not found")
+    participants = _resolve_participants(conn, room_id, user_id, participant_user_ids)
     expense = insert_expense(conn, room_id, user_id, member["email"], material, money, created_at)
     _apply_splits_and_balances(conn, room_id, expense["id"], user_id, money, participants)
     _notify_expense_added(conn, room_id, expense, admin_user, money, participants)
@@ -154,6 +164,9 @@ def _get_changeable_expense(conn: Connection, room_id: int, expense_id: int, mem
         raise PermissionError("Only admins or the person who paid can change this expense")
     if expense["settled"]:
         raise ExpenseSettledError("Settled expenses can't be changed")
+    # Editing or deleting reverses the splits, which would move a departed payer's balance.
+    if get_member_by_user_id(conn, room_id, expense["user_id"]) is None:
+        raise ValueError("The person who paid for this expense has left the room, so it can't be changed")
     return expense
 
 
@@ -176,24 +189,26 @@ def edit_expense(
         raise ValueError("Nothing to update")
 
     payer_id = expense["user_id"]
-    new_participants = None
     if participant_user_ids is not None:
-        new_participants = _validate_edit_participants(conn, room_id, payer_id, participant_user_ids)
-
-    resplit = money is not None or new_participants is not None
-    old_splits = _reverse_splits_and_balances(conn, room_id, expense_id) if resplit else []
+        participants = _validate_edit_participants(conn, room_id, payer_id, participant_user_ids)
+    elif money is not None:
+        # Keep the existing split as it is, including anyone in it who has since left.
+        participants = [{"user_id": s["user_id"]} for s in get_expense_splits(conn, expense_id)]
+        if payer_id not in {p["user_id"] for p in participants}:
+            raise ValueError(
+                "The payer isn't part of this expense's split. Send participant_user_ids including the payer."
+            )
+    else:
+        participants = None  # only material/created_at changed: splits stay as they are
 
     if material is not None or money is not None or created_at is not None:
         updated = update_expense(conn, expense_id, material, money, created_at)
     else:
         updated = expense
 
-    if resplit:
-        participants = new_participants
-        if participants is None:
-            participants = get_members_by_user_ids(conn, room_id, [s["user_id"] for s in old_splits])
-        if participants:
-            _apply_splits_and_balances(conn, room_id, expense_id, payer_id, updated["money"], participants)
+    if participants is not None:
+        _reverse_splits_and_balances(conn, room_id, expense_id)
+        _apply_splits_and_balances(conn, room_id, expense_id, payer_id, updated["money"], participants)
 
     return updated
 
@@ -201,19 +216,9 @@ def edit_expense(
 def _validate_edit_participants(
     conn: Connection, room_id: int, payer_id: int, participant_user_ids: list[int]
 ) -> list[dict]:
-    ids = list(dict.fromkeys(participant_user_ids))
-    if not ids:
+    if not participant_user_ids:
         raise ValueError("Pick at least one participant")
-    members = get_members_by_user_ids(conn, room_id, ids)
-    found = {m["user_id"] for m in members}
-    missing = [uid for uid in ids if uid not in found]
-    if missing:
-        raise ValueError(f"Not room members: {missing}")
-    # A payer outside the split leaves the expense's balances unbalanced. A payer
-    # who has since left the room can't be added back, so they are exempt.
-    if payer_id not in found and get_member_by_user_id(conn, room_id, payer_id) is not None:
-        raise ValueError("The payer must be part of the split")
-    return members
+    return _load_participants(conn, room_id, payer_id, participant_user_ids)
 
 
 def remove_expense(

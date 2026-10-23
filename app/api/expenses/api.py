@@ -43,9 +43,12 @@ def add_expense(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
 ) -> ExpenseResponse:
-    return expenses_services.add_expense(
-        conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
-    )
+    try:
+        return expenses_services.add_expense(
+            conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Declared before /{expense_id}, which would otherwise read "frequent-items" as an id.
@@ -106,6 +109,8 @@ def delete_expense(
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except expenses_services.ExpenseSettledError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -122,7 +127,12 @@ def add_expense_for_member(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ) -> ExpenseResponse:
-    return expenses_services.add_expense_for_member(
-        conn, room_id, body.material, body.money, body.user_id, membership["user"],
-        body.created_at, body.participant_user_ids,
-    )
+    try:
+        return expenses_services.add_expense_for_member(
+            conn, room_id, body.material, body.money, body.user_id, membership["user"],
+            body.created_at, body.participant_user_ids,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

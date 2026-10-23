@@ -1,4 +1,4 @@
-from sqlalchemy import Connection, Engine, create_engine
+from sqlalchemy import URL, Connection, Engine, create_engine
 from typing import Any, Generator
 from db.config import (
   get_db_host,
@@ -11,14 +11,16 @@ from db.config import (
   validate_env,
 )
 
-def _get_db_url() -> str:
-  DB_NAME = get_db_name()
-  DB_HOST = get_db_host()
-  DB_PORT = get_db_port()
-  DB_USER = get_db_user()
-  DB_PASSWORD = get_db_password()
-
-  return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+def _get_db_url() -> URL:
+  # URL.create escapes each part, so a password containing @ : / # ? % stays intact
+  return URL.create(
+    "postgresql",
+    username = get_db_user(),
+    password = get_db_password(),
+    host = get_db_host(),
+    port = int(get_db_port()),
+    database = get_db_name(),
+  )
 
 
 def get_sql_engine() -> Engine:

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Access tokens now live 15 minutes instead of 24 hours.** `JWT_ACCESS_EXPIRY_MINUTES` (default 15) replaces `JWT_EXPIRY_HOURS`, which is no longer read. Clients must call `/auth/refresh` on `401 Token expired`; a client that does not will be signed out every 15 minutes
+- The database URL is now built with SQLAlchemy's `URL.create` instead of an f-string, so a `DB_PASSWORD` (or user) containing `@`, `:`, `/`, `#`, `?` or `%` no longer breaks every DB connection (`db/engine.py`)
 - Docs rewritten around the two-token flow: `AUTH.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `SETUP.md`, `MIGRATIONS.md`, `AGENTS.md`, `README.md`, `tests/README.md`, `PLAN.md`, `TODOS.md`
 
 ## [1.2.0] - 2026-09-19

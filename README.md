@@ -21,63 +21,9 @@ Standalone **Python FastAPI** backend for RoomGrub — a shared-expense tracker 
 - **Firebase Cloud Messaging** — push notifications (optional; disabled when unconfigured)
 - **Pydantic v2** — request/response validation
 
-## Setup
+## Running it locally
 
-Everything below uses Docker for the database — no Supabase credentials needed to get started.
-
-**Prerequisites**: Python 3.11+, Docker, [dbmate](https://github.com/amacneil/dbmate#installation).
-
-1. **Clone the repo and enter it**
-
-   ```bash
-   git clone <repo-url> RoomGrub-backend
-   cd RoomGrub-backend
-   ```
-
-2. **Create a virtualenv and install dependencies**
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # .venv\Scripts\activate on Windows
-   pip install -r requirements.txt
-   ```
-
-3. **Copy the env file** — works out of the box, no values to look up
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   `REDIS_URL` is a placeholder by default — fill in a real Upstash `rediss://` connection string to enable caching. The app runs fine without it reachable (Redis errors fail open to Postgres), it just won't cache anything or publish events until it's set correctly. Login needs a real `GOOGLE_CLIENT_ID`, and push needs `FIREBASE_CREDENTIALS_JSON` — see [docs/SETUP.md](docs/SETUP.md) for every variable and how to obtain each one.
-
-4. **Start both local Postgres containers** (dev DB + test DB)
-
-   ```bash
-   docker compose up -d
-   ```
-
-5. **Apply migrations to both**
-
-   ```bash
-   ./scripts/migrate_dev_db.sh
-   ./scripts/migrate_test_db.sh
-   ```
-
-6. **Run the dev server**
-
-   ```bash
-   uvicorn main:app --reload --port 8000
-   ```
-
-   API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`.
-
-7. **Run the tests**
-
-   ```bash
-   pytest -v
-   ```
-
-Making a schema change from here on? See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+Want to run the backend locally or contribute? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — it covers prerequisites, setup, migrations, running the server and the test suite.
 
 ## Documentation
 
@@ -93,6 +39,9 @@ Making a schema change from here on? See [docs/MIGRATIONS.md](docs/MIGRATIONS.md
 | [tests/README.md](tests/README.md) | Test suite setup, isolation, fixtures |
 | [AGENTS.md](AGENTS.md) | Conventions for contributors and AI agents (`CLAUDE.md` is a symlink to it) |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Local setup, tests, and how to submit changes |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
+| [LICENSE](LICENSE) | MIT license |
 
 ## Project structure
 
@@ -120,3 +69,7 @@ tests/
   e2e/                # API tests against the test-db container
   unit/               # Unit tests
 ```
+
+## License
+
+[MIT](LICENSE)

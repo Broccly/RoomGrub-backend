@@ -12,7 +12,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Regenerate `db/schema.sql`. It stops at migration `20260724130000` — it still has `push_subscriptions` and no `fcm_tokens` — and it was dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
 - [ ] `tests/e2e/test_notifications.py` still exercises the deleted `/rooms/{room_id}/push-subscriptions` routes and the unmounted notifications router. Rewrite it against `POST` / `DELETE /api/v1/notifications/fcm-token`.
 - [ ] Drop `alembic` from `requirements.txt` and `pyproject.toml` — migrations are dbmate.
-- [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so the README's install-then-`pytest -v` steps fail on a fresh virtualenv. Add it as a dev dependency.
+- [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so a fresh virtualenv needs a manual `pip install pytest` (CONTRIBUTING.md says so). Add it as a dev dependency.
 - [ ] Drop the unused `SpendingParticipants` table (created by the baseline migration, superseded by `SpendingSplits`).
 - [ ] Tag releases in git (`v1.0.0`, `v1.1.0`, `v1.2.0`) to match CHANGELOG.md.
 

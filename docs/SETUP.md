@@ -1,7 +1,7 @@
 # RoomGrub Backend — Configuration & External Services
 
-Getting the app running locally is covered by the **Setup** section of the
-[README](../README.md): virtualenv, `cp .env.example .env`, `docker compose up -d`,
+Getting the app running locally is covered by the **Getting Started** section of
+[CONTRIBUTING.md](../CONTRIBUTING.md): virtualenv, `cp .env.example .env`, `docker compose up -d`,
 migrate, `uvicorn`. That path needs no external accounts.
 
 This document is the reference for everything in `.env` and for wiring up the

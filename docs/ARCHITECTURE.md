@@ -134,7 +134,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Rooms
 | Method | Path                                | Access | Description                                       |
 |--------|-------------------------------------|--------|---------------------------------------------------|
-| GET    | `/api/v1/rooms`                     | User   | List rooms for current user                       |
+| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars) |
 | POST   | `/api/v1/rooms`                     | User   | Create a room; creator becomes Admin              |
 | GET    | `/api/v1/rooms/{room_id}`           | Member | Room summary: `total_spent`, `pending_amount`     |
 | GET    | `/api/v1/rooms/{room_id}/dashboard` | Member | Room + per-member unsettled spend                 |
@@ -144,16 +144,17 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | Method | Path                                              | Access | Description                               |
 |--------|---------------------------------------------------|--------|-------------------------------------------|
 | GET    | `/api/v1/rooms/{room_id}/expenses`                | Member | Paginated list (cursor-based). Filters: `settled`, `search`, `user_email`, `date_from`, `date_to` |
-| POST   | `/api/v1/rooms/{room_id}/expenses`                | Member | Add expense paid by self; optional `participant_user_ids` |
+| GET    | `/api/v1/rooms/{room_id}/expenses/frequent-items` | Member | `{items}`: most-used item names across the latest 100 expenses (comma-split, case-insensitive, latest spelling); `limit` 1–20, default 6 |
+| POST   | `/api/v1/rooms/{room_id}/expenses`                | Member | Add expense paid by self; optional `participant_user_ids` (must include self) |
 | GET    | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Member | Expense detail with payer and per-participant split |
-| PATCH  | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin  | Edit `material`, `money`, `created_at`    |
-| DELETE | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin  | Delete expense and reverse its splits     |
-| POST   | `/api/v1/rooms/{room_id}/expenses/for-member`     | Admin  | Add expense paid by another member (`user_id`) |
+| PATCH  | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin or owner | Edit `material`, `money`, `created_at`, `participant_user_ids`; any other field → 422 (unsettled only, else 409; payer must still be a member, else 400) |
+| DELETE | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Admin or owner | Delete expense and reverse its splits (unsettled only, else 409; payer must still be a member, else 400) |
+| POST   | `/api/v1/rooms/{room_id}/expenses/for-member`     | Admin  | Add expense paid by another member (`user_id`); `participant_user_ids` must include them |
 
 ### Splits
 | Method | Path                                         | Access | Description                               |
 |--------|----------------------------------------------|--------|-------------------------------------------|
-| GET    | `/api/v1/rooms/{room_id}/splits`             | Member | Member balances, unsettled expenses, suggested settlements, `total_pending` |
+| GET    | `/api/v1/rooms/{room_id}/splits`             | Member | Member balances and spend/share totals, unsettled expenses (skip with `?include_expenses=false`), suggested settlements, room `total_pending` / `total_spent` / `unsettled_count` / `last_settled_at` |
 | POST   | `/api/v1/rooms/{room_id}/splits/settle-all`  | Admin  | Settle the whole room after verifying client-sent balances |
 
 ### Members
@@ -162,8 +163,8 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | GET    | `/api/v1/rooms/{room_id}/members`                   | Member    | List members                         |
 | GET    | `/api/v1/rooms/{room_id}/members/{user_id}`         | Member    | Member detail, totals, pending expenses |
 | PATCH  | `/api/v1/rooms/{room_id}/members/{user_id}/role`    | Admin     | Change role                          |
-| DELETE | `/api/v1/rooms/{room_id}/members/me`                | Non-admin | Exit room (blocked with outstanding balance) |
-| DELETE | `/api/v1/rooms/{room_id}/members/{user_id}`         | Admin     | Remove member (blocked with outstanding balance) |
+| DELETE | `/api/v1/rooms/{room_id}/members/me`                | Non-admin | Exit room (blocked while in an unsettled expense) |
+| DELETE | `/api/v1/rooms/{room_id}/members/{user_id}`         | Admin     | Remove member (blocked while in an unsettled expense) |
 
 ### Invites
 | Method | Path                                | Access | Description                     |

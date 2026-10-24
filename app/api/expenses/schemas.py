@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
@@ -31,9 +31,19 @@ class ExpenseResponse(BaseModel):
 
 
 class ExpenseUpdate(BaseModel):
+    # Unknown fields are rejected, so an attempt to change the payer fails instead of being ignored.
+    model_config = ConfigDict(extra="forbid")
+
     material: str | None = None
     money: float | None = None
     created_at: datetime | None = None
+    # Replaces who the expense is split between; omit to keep the current split.
+    participant_user_ids: list[int] | None = None
+
+
+class FrequentItems(BaseModel):
+    # Item names, most used first.
+    items: list[str]
 
 
 class PaginatedExpenses(BaseModel):

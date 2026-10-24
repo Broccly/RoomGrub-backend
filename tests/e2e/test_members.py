@@ -143,6 +143,68 @@ class TestMembersAuthenticated:
         r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/{member['id']}", headers=auth_headers(admin))
         assert r.status_code == 400
 
+    def test_exit_room_blocked_by_unsettled_expense_at_zero_balance(
+        self, test_client, make_user, make_room, add_member, make_expense
+    ):
+        admin = make_user("admin13@example.com")
+        member = make_user("member13@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        # Each pays 30 split two ways: the member's net is 0 but they're in two unsettled expenses.
+        make_expense(room["id"], member["email"], money=30.0)
+        make_expense(room["id"], admin["email"], money=30.0)
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/me", headers=auth_headers(member))
+        assert r.status_code == 400
+        assert "unsettled expenses" in r.json()["detail"]
+
+    def test_remove_member_blocked_by_unsettled_expense_at_zero_balance(
+        self, test_client, make_user, make_room, add_member, make_expense
+    ):
+        admin = make_user("admin14@example.com")
+        member = make_user("member14@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        make_expense(room["id"], member["email"], money=30.0)
+        make_expense(room["id"], admin["email"], money=30.0)
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/{member['id']}", headers=auth_headers(admin))
+        assert r.status_code == 400
+        assert "unsettled expenses" in r.json()["detail"]
+
+    def test_exit_room_after_settle_all(self, test_client, make_user, make_room, add_member, make_expense):
+        admin = make_user("admin15@example.com")
+        member = make_user("member15@example.com")
+        room = make_room(admin)
+        add_member(room["id"], member)
+        make_expense(room["id"], member["email"], money=30.0)
+        make_expense(room["id"], admin["email"], money=30.0)
+
+        r = test_client.post(
+            f"/api/v1/rooms/{room['id']}/splits/settle-all",
+            json={"members": [
+                {"user_email": admin["email"], "pending_amount": 0},
+                {"user_email": member["email"], "pending_amount": 0},
+            ]},
+            headers=auth_headers(admin),
+        )
+        assert r.status_code == 204
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/me", headers=auth_headers(member))
+        assert r.status_code == 204
+
+    def test_exit_room_ignores_unsettled_expense_member_is_not_in(
+        self, test_client, make_user, make_room, add_member, make_expense
+    ):
+        admin = make_user("admin16@example.com")
+        member = make_user("member16@example.com")
+        room = make_room(admin)
+        make_expense(room["id"], admin["email"], money=30.0)
+        add_member(room["id"], member)
+
+        r = test_client.delete(f"/api/v1/rooms/{room['id']}/members/me", headers=auth_headers(member))
+        assert r.status_code == 204
+
     def test_admin_cannot_remove_self(self, test_client, make_user, make_room):
         admin = make_user("admin10@example.com")
         room = make_room(admin)

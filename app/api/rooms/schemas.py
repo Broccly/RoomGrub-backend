@@ -7,6 +7,17 @@ class RoomResponse(BaseModel):
     admin: str
 
 
+class MemberPreview(BaseModel):
+    # Avatar photo URL; when missing, the app draws initials from `label`.
+    profile: str | None
+    label: str
+
+
+class RoomListItem(RoomResponse):
+    # The first few members by join date, enough to draw a room card's avatars.
+    member_preview: list[MemberPreview]
+
+
 class RoomSummary(RoomResponse):
     total_spent: float
     pending_amount: float

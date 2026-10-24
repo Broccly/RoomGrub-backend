@@ -56,7 +56,7 @@ dbmate new add_some_column
 
 - Update `docs/DOMAIN.md` if tables or columns changed, and add the migration to the history table below.
 - Add a `CHANGELOG.md` entry.
-- `db/schema.sql` is a committed schema dump. It is currently stale (see `docs/TODOS.md`); don't treat it as the source of truth — the migrations are.
+- `db/schema.sql` is a committed schema dump, taken from Supabase, so it also carries Supabase's own schemas (see `docs/TODOS.md`); don't treat it as the source of truth — the migrations are.
 
 ## Migration history
 

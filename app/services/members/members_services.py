@@ -10,9 +10,9 @@ from app.models.members.members_model import (
     update_member_role,
     remove_user_room,
     get_my_membership,
+    has_unsettled_splits,
 )
 from app.cache.auth_cache import invalidate_cached_room_access
-from app.models.splits.splits_model import get_pending_for_user
 
 
 def list_members(conn: Connection, room_id: int) -> list[dict]:
@@ -48,15 +48,13 @@ def remove_member(
 ) -> None:
     member = get_member_by_user_id(conn, room_id, user_id)
     if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+        raise LookupError("Member not found")
     if user_id == current_user["id"]:
-        raise HTTPException(
-            status_code=400, detail="Admin cannot remove themselves. Use /members/me to exit."
-        )
-    if round(get_pending_for_user(conn, room_id, member["email"]), 2) != 0:
-        raise HTTPException(
-            status_code=400, detail="Cannot remove member with an outstanding balance. Please settle up first."
-        )
+        raise ValueError("Admin cannot remove themselves. Use /members/me to exit.")
+    # Unsettled expenses can still be edited or deleted, which would move a departed member's balance.
+    # Also covers a non-zero balance: a balance only moves through unsettled expenses.
+    if has_unsettled_splits(conn, room_id, user_id):
+        raise ValueError("This member is part of unsettled expenses. Settle the room before removing them.")
     remove_user_room(conn, room_id, user_id)
     invalidate_cached_room_access(redis_client, user_id, room_id)
 
@@ -64,14 +62,10 @@ def remove_member(
 def exit_room(conn: Connection, room_id: int, current_user: dict, redis_client: redis.Redis) -> None:
     membership = get_my_membership(conn, room_id, current_user["id"])
     if not membership:
-        raise HTTPException(status_code=403, detail="Not a member of this room")
+        raise PermissionError("Not a member of this room")
     if membership["role"] == "Admin":
-        raise HTTPException(
-            status_code=400, detail="Admin cannot exit the room. Transfer admin role first."
-        )
-    if round(get_pending_for_user(conn, room_id, membership["email"]), 2) != 0:
-        raise HTTPException(
-            status_code=400, detail="Cannot exit room with an outstanding balance. Please settle up first."
-        )
+        raise ValueError("Admin cannot exit the room. Transfer admin role first.")
+    if has_unsettled_splits(conn, room_id, current_user["id"]):
+        raise ValueError("You're part of unsettled expenses. Ask the admin to settle the room before leaving.")
     remove_user_room(conn, room_id, current_user["id"])
     invalidate_cached_room_access(redis_client, current_user["id"], room_id)

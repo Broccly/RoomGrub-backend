@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.room_access import require_room_admin, require_room_member
@@ -13,10 +13,12 @@ router = APIRouter(prefix="/api/v1/rooms", tags=["Splits"])
 @router.get("/{room_id}/splits", response_model=SplitsData)
 def get_splits(
     room_id: int,
+    # False skips the per-expense list, for screens that only need the totals.
+    include_expenses: bool = Query(default=True),
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
 ) -> SplitsData:
-    return splits_services.get_splits_data(conn, room_id)
+    return splits_services.get_splits_data(conn, room_id, include_expenses=include_expenses)
 
 
 @router.post("/{room_id}/splits/settle-all", status_code=status.HTTP_204_NO_CONTENT)

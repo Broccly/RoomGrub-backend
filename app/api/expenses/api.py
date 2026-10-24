@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from app.dependencies.room_access import require_room_admin, require_room_member
@@ -8,6 +8,7 @@ from app.api.expenses.schemas import (
     ExpenseUpdate,
     ExpenseResponse,
     ExpenseDetail,
+    FrequentItems,
     PaginatedExpenses,
 )
 from app.services.expenses import expenses_services
@@ -42,9 +43,23 @@ def add_expense(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_member),
 ) -> ExpenseResponse:
-    return expenses_services.add_expense(
-        conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
-    )
+    try:
+        return expenses_services.add_expense(
+            conn, room_id, body.material, body.money, membership["user"], body.created_at, body.participant_user_ids
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# Declared before /{expense_id}, which would otherwise read "frequent-items" as an id.
+@router.get("/{room_id}/expenses/frequent-items", response_model=FrequentItems)
+def get_frequent_items(
+    room_id: int,
+    limit: int = Query(default=6, ge=1, le=20),
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_member),
+) -> FrequentItems:
+    return expenses_services.get_frequent_items(conn, room_id, limit)
 
 
 @router.get("/{room_id}/expenses/{expense_id}", response_model=ExpenseDetail)
@@ -63,13 +78,22 @@ def edit_expense(
     expense_id: int,
     body: ExpenseUpdate,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
+    membership: dict = Depends(require_room_member),
 ) -> ExpenseResponse:
-    return expenses_services.edit_expense(
-        conn, room_id, expense_id,
-        body.material, body.money, body.created_at,
-        membership["user"],
-    )
+    try:
+        return expenses_services.edit_expense(
+            conn, room_id, expense_id,
+            body.material, body.money, body.created_at,
+            membership, body.participant_user_ids,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except expenses_services.ExpenseSettledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete("/{room_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -77,9 +101,18 @@ def delete_expense(
     room_id: int,
     expense_id: int,
     conn: Connection = Depends(db_conn),
-    membership: dict = Depends(require_room_admin),
+    membership: dict = Depends(require_room_member),
 ) -> Response:
-    expenses_services.remove_expense(conn, room_id, expense_id, membership["user"])
+    try:
+        expenses_services.remove_expense(conn, room_id, expense_id, membership)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except expenses_services.ExpenseSettledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -94,7 +127,12 @@ def add_expense_for_member(
     conn: Connection = Depends(db_conn),
     membership: dict = Depends(require_room_admin),
 ) -> ExpenseResponse:
-    return expenses_services.add_expense_for_member(
-        conn, room_id, body.material, body.money, body.user_id, membership["user"],
-        body.created_at, body.participant_user_ids,
-    )
+    try:
+        return expenses_services.add_expense_for_member(
+            conn, room_id, body.material, body.money, body.user_id, membership["user"],
+            body.created_at, body.participant_user_ids,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

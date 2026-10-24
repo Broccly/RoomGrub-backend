@@ -1,5 +1,5 @@
 from sqlalchemy import Connection, text
-from app.models.expenses.schemas import ExpenseRow
+from app.models.expenses.schemas import ExpenseRow, FrequentItemRow
 
 
 def get_expenses(
@@ -45,7 +45,7 @@ def get_expenses(
     where = " AND ".join(conditions)
     rows = conn.execute(
         text(f"""
-            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
@@ -61,7 +61,7 @@ def get_expenses(
 def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT s.id, s.room, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
             LEFT JOIN "Users" u ON u.email = s."user"
@@ -72,13 +72,46 @@ def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     return ExpenseRow(**row._mapping).model_dump() if row else None
 
 
+def get_frequent_items(conn: Connection, room_id: int, limit: int, window: int = 100) -> list[str]:
+    """Most-used item names across the room's latest `window` expenses.
+
+    `material` can hold several comma-separated items. Names are grouped
+    case-insensitively and shown with their latest spelling; ties go to the
+    most recently used.
+    """
+    rows = conn.execute(
+        text("""
+            WITH recent AS (
+                SELECT id, material
+                FROM "Spendings"
+                WHERE room = :room_id
+                ORDER BY id DESC
+                LIMIT :window
+            ),
+            parts AS (
+                SELECT r.id, btrim(part) AS label
+                FROM recent r, regexp_split_to_table(r.material, ',') AS part
+            )
+            SELECT (array_agg(label ORDER BY id DESC))[1] AS label
+            FROM parts
+            WHERE label <> ''
+            GROUP BY lower(label)
+            ORDER BY COUNT(*) DESC, MAX(id) DESC
+            LIMIT :limit
+        """),
+        {"room_id": room_id, "window": window, "limit": limit},
+    ).fetchall()
+    return [FrequentItemRow(**r._mapping).label for r in rows]
+
+
 def update_expense(
     conn: Connection,
     expense_id: int,
     material: str | None,
     money: float | None,
     created_at,
-) -> dict:
+) -> dict | None:
+    """Update an unsettled expense. Returns None, changing nothing, if it is settled."""
     fields = []
     params: dict = {"expense_id": expense_id}
     if material is not None:
@@ -91,19 +124,30 @@ def update_expense(
         fields.append("created_at = :created_at")
         params["created_at"] = created_at
 
-    conn.execute(
+    row = conn.execute(
         text(f"""
             UPDATE "Spendings" SET {', '.join(fields)}
-            WHERE id = :expense_id
+            WHERE id = :expense_id AND settled IS NOT TRUE
+            RETURNING id
         """),
         params,
-    )
-    return get_expense_by_id(conn, expense_id)
+    ).fetchone()
+    return get_expense_by_id(conn, expense_id) if row else None
 
 
-def delete_expense(conn: Connection, expense_id: int) -> None:
+def delete_expense(conn: Connection, expense_id: int) -> bool:
+    """Delete an unsettled expense. Returns False, deleting nothing, if it is settled."""
+    row = conn.execute(
+        text('DELETE FROM "Spendings" WHERE id = :expense_id AND settled IS NOT TRUE RETURNING id'),
+        {"expense_id": expense_id},
+    ).fetchone()
+    return row is not None
+
+
+def lock_expense(conn: Connection, expense_id: int) -> None:
+    """Row-lock the expense until commit, so a concurrent settle-all can't settle it mid-change."""
     conn.execute(
-        text('DELETE FROM "Spendings" WHERE id = :expense_id'),
+        text('SELECT id FROM "Spendings" WHERE id = :expense_id FOR UPDATE'),
         {"expense_id": expense_id},
     )
 

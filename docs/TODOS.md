@@ -5,11 +5,11 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 ## Open
 
 ### Code vs. convention
-- [ ] **Services raise `HTTPException`.** The rule (AGENTS.md) is: routers and dependencies raise `HTTPException`; services raise plain exceptions that routers convert. Today `rooms`, `expenses`, `members`, `splits` and `invites` services — and `app/utils/auth_providers.py` — raise `HTTPException` directly. Refactor to plain exceptions (`ValueError` → 400, `PermissionError` → 403, a not-found error → 404, invite gone → 410) with the conversion in each router, keeping status codes and messages unchanged so the e2e tests still pass.
+- [ ] **Services raise `HTTPException`.** The rule (AGENTS.md) is: routers and dependencies raise `HTTPException`; services raise plain exceptions that routers convert. Today `rooms`, `expenses`, `members`, `splits` and `invites` services — and `app/utils/auth_providers.py` — raise `HTTPException` directly (`members_services.exit_room` / `remove_member` and the `expenses_services` create, edit and delete paths are already converted; `get_expense_detail` is not). Refactor to plain exceptions (`ValueError` → 400, `PermissionError` → 403, a not-found error → 404, invite gone → 410) with the conversion in each router, keeping status codes and messages unchanged so the e2e tests still pass.
 - [ ] `expenses_model.get_expenses` and `update_expense` assemble their `WHERE` / `SET` clauses with f-strings. Values are bound and the fragments are static, so it is not injectable, but it breaks the "no f-string SQL" rule — rewrite as static parameterized queries, as was done for the splits filters in 1.0.0.
 
 ### Stale artifacts
-- [ ] Regenerate `db/schema.sql`. It stops at migration `20260724130000` — it still has `push_subscriptions` and no `fcm_tokens` — and it was dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
+- [ ] `db/schema.sql` is current up to migration `20261005120000`, but it is dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
 - [ ] `tests/e2e/test_notifications.py` still exercises the deleted `/rooms/{room_id}/push-subscriptions` routes and the unmounted notifications router. Rewrite it against `POST` / `DELETE /api/v1/notifications/fcm-token`.
 - [ ] Drop `alembic` from `requirements.txt` and `pyproject.toml` — migrations are dbmate.
 - [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so a fresh virtualenv needs a manual `pip install pytest` (CONTRIBUTING.md says so). Add it as a dev dependency.
@@ -17,8 +17,7 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Tag releases in git (`v1.0.0`, `v1.1.0`, `v1.2.0`) to match CHANGELOG.md.
 
 ### Behaviour to verify or fix
-- [ ] Editing or deleting an **already settled** expense reverses its splits against the member's *current* active balance. Either block edits/deletes of settled expenses or skip the balance reversal for them.
-- [ ] If the payer is not in `participant_user_ids`, no split row records `amount_paid`: the balances for that expense don't net to zero, and a later `money` edit drops its splits entirely (`edit_expense` only re-applies when it finds a payer row). Decide whether the payer must always be a participant.
+- [ ] If the payer is not in `participant_user_ids` on **create**, no split row records `amount_paid`, so the balances for that expense don't net to zero. Edits already require the payer to stay in the split; decide whether creation should too.
 - [ ] Share rounding: `round(money / n, 2)` per participant can leave a cent of drift per expense. Assign the remainder to one participant so splits always sum to `money`.
 - [ ] `Spendings.money` is `bigint` while the API accepts fractional amounts and splits are `numeric(10,2)` — confirm whether fractional expenses are meant to be supported and align the column.
 - [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused).
@@ -32,7 +31,6 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Settlement-history endpoint — list a member's closed `RoomBalanceSummary` rows, most recent first. The data is already being recorded.
 - [ ] Activity log: decide whether to mount `notifications_router` (currently commented out in `main.py`) and have expense / member / settle actions write to it, or delete the router, service, model and table.
 - [ ] Push for more than "expense added": settle-all, member joined, member removed.
-- [ ] Changing an expense's participants after creation.
 - [ ] `GET /health` does not touch the DB — add a readiness check that does.
 - [ ] Move CORS origins from `main.py` to an env var.
 - [ ] Prod environment: `PROD_DB_*` vars, `prod_database_url` in `scripts/db_url.sh` (see MIGRATIONS.md).
@@ -76,6 +74,8 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [x] `POST /api/v1/rooms/{room_id}/expenses/for-member` — Admin
 - [x] `GET /api/v1/rooms/{room_id}/expenses/{expense_id}` — detail with participants
 - [x] `PATCH` / `DELETE /api/v1/rooms/{room_id}/expenses/{expense_id}` — Admin
+- [x] Settled expenses can't be edited or deleted (409), so their splits are never reversed against a later balance
+- [x] `PATCH` can change an expense's participants (`participant_user_ids`)
 
 ### Split domain
 - [x] `SpendingSplits` and `RoomBalanceSummary` tables, backfill and backfill fixes
@@ -90,8 +90,8 @@ Designed but deliberately not built: the `WRITE_PRECOMPUTED_SPLITS` feature flag
 ### Members
 - [x] `GET /api/v1/rooms/{room_id}/members`, `GET .../members/{user_id}`
 - [x] `PATCH .../members/{user_id}/role` — Admin, no self-demotion
-- [x] `DELETE .../members/{user_id}` — Admin, not self, zero-balance guard
-- [x] `DELETE .../members/me` — non-admin, zero-balance guard
+- [x] `DELETE .../members/{user_id}` — Admin, not self, no-unsettled-expenses guard
+- [x] `DELETE .../members/me` — non-admin, no-unsettled-expenses guard
 
 ### Invites
 - [x] `POST /api/v1/rooms/{room_id}/invites` — Admin

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Changed
+
+- Exiting a room (`DELETE /rooms/{room_id}/members/me`) and removing a member (`DELETE /rooms/{room_id}/members/{user_id}`) are now blocked (`400`) while the member is part of any unsettled expense, even when their net balance is zero. This replaces the net-balance check, which it covers: a balance only moves through unsettled expenses. Unsettled expenses can still be edited or deleted, which would otherwise change a departed member's balance or drop a departed payer's credit. Settle the room first (`members_model.has_unsettled_splits`)
+- `members_services.exit_room` and `remove_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
+- `POST /rooms/{room_id}/expenses` and `/expenses/for-member` reject (`400`) a `participant_user_ids` list that leaves out the payer. Such an expense recorded no payment, so its balances didn't add up
+- Editing or deleting an expense whose payer has left the room returns `400`
+- A money-only edit keeps the expense's existing split exactly, and returns `400` if that split doesn't include the payer (older expenses created without them)
+- `PATCH /rooms/{room_id}/expenses/{expense_id}` rejects (`422`) any field besides `material`, `money`, `created_at` and `participant_user_ids`. Sending a payer such as `user_id` used to be silently ignored; the payer can't be changed
+- `expenses_services.add_expense` and `add_expense_for_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
+
+### Fixed
+
+- A money-only expense edit dropped split members who had left the room, and the payer's credit with them, so the room's balances no longer summed to zero
+- Editing participants of an expense whose payer had left skipped the "payer must be in the split" check and lost the payer's credit
+
+## [1.3.0] - 2026-10-21
 ### Added
 
 - Refresh tokens, so a signed-in device is no longer signed out when its access token expires. `POST /auth/login` now also returns `refresh_token` and `expires_in`; each login starts its own session ("family"), one per device (`app/services/auth/auth_services.py`)
@@ -16,12 +32,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refresh and logout serialise per session with a Postgres advisory lock on the token's family (`auth_model.lock_refresh_token_family`), so a family revocation cannot miss a token issued by a concurrent refresh of another token in the same family
 - `REFRESH_TOKEN_EXPIRY_DAYS` env var (default 90)
 - e2e coverage for rotation, the grace window, reuse detection, expiry, logout and cleanup (`tests/e2e/test_auth.py`)
+- `PATCH /rooms/{room_id}/expenses/{expense_id}` accepts `participant_user_ids` to change who an expense is split between. The list must be non-empty, all room members, and include the payer (`400` otherwise); balances are re-split in the same transaction
+- `GET /rooms/{room_id}/splits` returns what the app's Home screen needs in one call: per member `user_id`, `role`, `unsettled_spent`, `unsettled_share`, `total_spent`; per settlement `from_user_id` / `to_user_id`; and room `unsettled_count`, `total_spent`, `last_settled_at`. `?include_expenses=false` skips the `unsettled_expenses` list. All amounts are rounded to 2 decimals
+- `GET /rooms` returns `member_preview` per room — the first 4 members by join date as `{profile, label}` — so the rooms list can draw its avatars without calling `/members` once per room. Fetched for all rooms in one query (`rooms_model.get_member_previews`)
+- `GET /rooms/{room_id}/expenses/frequent-items?limit=6` returns `{items}`, the room's most-used item names, for the app's suggestion chips. It ranks the latest 100 expenses the same way the app did on the phone: comma-separated names, case-insensitive, most used first, ties to the most recent, shown with the latest spelling
 
 ### Changed
 
+- `GET /splits` lists every current room member, with zeros when they have no balance yet (a new room used to return no members), plus anyone who left with a non-zero balance (`role: null`). `total_pending` is typed as a float instead of an int
+- Room-scoped routes return `404 Room not found` for a room that doesn't exist (e.g. deleted) instead of `403`, so clients can tell it apart from a room they aren't a member of, which stays `403 Not a member of this room`. The extra lookup runs only when access is denied (`require_room_member`)
+- `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` are no longer Admin-only: the expense's owner (its payer, `Spendings.user_id`) can also edit — participants included — and delete it while it is unsettled. Other members get `403`
+- `PATCH` and `DELETE /rooms/{room_id}/expenses/{expense_id}` return `409 Settled expenses can't be changed` for a settled expense. Previously they reversed its splits against the members' current balances (`expenses_services.edit_expense`, `remove_expense`)
 - **Access tokens now live 15 minutes instead of 24 hours.** `JWT_ACCESS_EXPIRY_MINUTES` (default 15) replaces `JWT_EXPIRY_HOURS`, which is no longer read. Clients must call `/auth/refresh` on `401 Token expired`; a client that does not will be signed out every 15 minutes
 - The database URL is now built with SQLAlchemy's `URL.create` instead of an f-string, so a `DB_PASSWORD` (or user) containing `@`, `:`, `/`, `#`, `?` or `%` no longer breaks every DB connection (`db/engine.py`)
 - Docs rewritten around the two-token flow: `AUTH.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `SETUP.md`, `MIGRATIONS.md`, `AGENTS.md`, `README.md`, `tests/README.md`, `PLAN.md`, `TODOS.md`
+- `db/schema.sql` re-dumped: it now includes `fcm_tokens` and `refresh_tokens` and no longer has `push_subscriptions`
+
+### Fixed
+
+- Editing `money` on an expense whose payer was not in the split dropped all its splits. The payer is now read from `Spendings.user_id`, so the splits are re-applied
 
 ## [1.2.0] - 2026-09-19
 ### Added

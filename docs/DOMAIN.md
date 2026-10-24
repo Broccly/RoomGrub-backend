@@ -34,7 +34,7 @@ A shared household / group. Deliberately thin — member count and admin are **d
 | name       | text      | Unused by the API                        |
 | created_at | timestamp |                                          |
 
-API responses expose `members` (count of `UserRooms` rows) and `admin` (email of one Admin of the room).
+API responses expose `members` (count of `UserRooms` rows) and `admin` (email of one Admin of the room). `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
 
 ### UserRooms (membership)
 Many-to-many join between Users ↔ Rooms with a role.
@@ -78,11 +78,11 @@ Unique on `(spending_id, user_id)`.
 
 - Created with an explicit `participant_user_ids` list → only those members get a row.
 - Created without one → every current room member gets a row.
-- The payer gets `amount_paid` only if they are among the participants. If the payer is left out of `participant_user_ids`, no row records the payment.
+- The payer must be among the participants, so the payer's row always records the payment (`amount_paid = money`). Expenses created before this rule may have no payer row; they can't get a money-only edit until `participant_user_ids` including the payer is sent.
 - Existing rows were backfilled only for expenses that were still unsettled at migration time; older settled expenses have no splits.
 
 ### RoomBalanceSummary
-A member's running net position in a room, kept as a **historical ledger**: one **active** row per `(room, user)` plus any number of **closed** rows from past settle-alls. This is what `GET /splits`, settle-all verification and the exit/remove guards read.
+A member's running net position in a room, kept as a **historical ledger**: one **active** row per `(room, user)` plus any number of **closed** rows from past settle-alls. This is what `GET /splits` and settle-all verification read.
 
 | Field          | Type          | Notes                                                        |
 |----------------|---------------|--------------------------------------------------------------|
@@ -170,12 +170,12 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 ### Roles
 - A room's creator becomes its first `Admin`. A room can have more than one Admin.
 - An Admin cannot demote themselves, cannot remove themselves, and cannot exit the room — exiting is only open to non-admins.
-- Only Admins can: add expenses for others, edit or delete expenses, change member roles, remove members, create invite links, settle the room, delete the room.
-- Any member can add an expense they paid for and read everything in the room.
+- Only Admins can: add expenses for others, edit or delete other people's expenses, change member roles, remove members, create invite links, settle the room, delete the room.
+- Any member can add an expense they paid for, edit or delete their own unsettled expenses (see below), and read everything in the room.
 
 ### Adding an expense
 1. `money` must be greater than 0.
-2. Resolve participants: the given `participant_user_ids` (each must be a member of the room, otherwise 400), or all current members if omitted.
+2. Resolve participants: the given `participant_user_ids` (each must be a member of the room and the list must include the payer, otherwise 400), or all current members if omitted.
 3. Insert the `Spendings` row.
 4. Write one `SpendingSplits` row per participant: `amount_owed = round(money / n, 2)`; `amount_paid = money` on the payer's row, `0` elsewhere.
 5. Shift each participant's active `RoomBalanceSummary.pending_amount` by `amount_paid - amount_owed`.
@@ -185,8 +185,13 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 
 Because each share is rounded to 2 decimals, the shares of an expense may not sum exactly to `money` (100 ÷ 3 → 3 × 33.33), leaving up to a few cents of drift in the room's balances.
 
-### Editing and deleting an expense (Admin)
-- Changing `money` reverses the old splits and balance shifts, then re-applies them with the **same participants and the same payer**. Participants cannot be changed after creation.
+### Editing and deleting an expense (Admin or owner)
+- Allowed for any Admin, and for the expense's **owner** — its payer, `Spendings.user_id` (so a member owns an expense an Admin added for them). Anyone else gets `403`. Owners can change everything an Admin can, participants included.
+- Only **unsettled** expenses can be changed. Editing or deleting a settled one returns `409`: its splits were already paid out by a settle-all, so reversing them would corrupt the current balances.
+- The payer must still be a room member. If they have left, editing or deleting returns `400`: both reverse the splits, which would move a departed payer's balance. Exit/remove rules make this reachable only for older data.
+- Editable fields: `material`, `money`, `created_at`, `participant_user_ids`. The payer is always `Spendings.user_id` and can't be changed: any other field in the body, such as `user_id`, is rejected with `422`.
+- Changing `money` and/or `participant_user_ids` reverses the old splits and balance shifts, then re-applies them. The new amount is used, and the new participants if sent, otherwise the existing split's members exactly as they are. A money-only edit on an expense whose split doesn't include the payer returns `400`.
+- `participant_user_ids` on edit must be non-empty, all current room members, and must include the payer; otherwise `400`. Unlike creation, an empty list does not mean "everyone".
 - Changing only `material` / `created_at` leaves splits untouched.
 - Deleting reverses the balance shifts and removes the expense; its splits go with it.
 
@@ -195,14 +200,16 @@ The API uses `pending_amount` for two distinct things:
 
 | Where | Meaning |
 |-------|---------|
-| `GET /splits` → `members[].pending_amount`, settle-all verification, exit/remove guards | **Net balance** — the member's active `RoomBalanceSummary` row. Signed: positive = the room owes them, negative = they owe. |
+| `GET /splits` → `members[].pending_amount`, settle-all verification | **Net balance** — the member's active `RoomBalanceSummary` row. Signed: positive = the room owes them, negative = they owe. |
 | `GET /rooms/{id}` → `pending_amount`, `GET /splits` → `total_pending` | **Unsettled spend** in the room — `SUM(money)` over expenses with `settled IS NOT TRUE`. Never negative. |
-| `GET /rooms/{id}/dashboard` → `members[].pending_amount`, `GET /members/{user_id}` → `pending_amount` | **Unsettled spend paid by that member.** Never negative. |
+| `GET /rooms/{id}/dashboard` → `members[].pending_amount`, `GET /members/{user_id}` → `pending_amount`, `GET /splits` → `members[].unsettled_spent` | **Unsettled spend paid by that member.** Never negative. |
 
-`total_spent` (room summary, member detail) is `SUM(money)` over all expenses, settled or not.
+`total_spent` (room summary, member detail, `GET /splits` top level and `members[]`) is `SUM(money)` over all expenses, settled or not — for a member, the ones they paid (`Spendings.user_id`).
+
+`GET /splits` also returns, per member, `unsettled_share` — the sum of their `SpendingSplits.amount_owed` over unsettled expenses — and, for the room, `unsettled_count` and `last_settled_at` (the latest `RoomBalanceSummary.settled_at`, i.e. the last settle-all). It lists **every current member** (zeros when they have no active balance row) plus anyone who left the room with a non-zero active balance (`role: null`). `?include_expenses=false` returns `unsettled_expenses: []` for clients that only need the totals.
 
 ### Suggested settlements
-`GET /splits` returns `settlements[]` — `{from_user_email, to_user_email, amount}` transfers that would zero the active balances. Balances within `0.01` of zero are ignored. These are suggestions for display; nothing is stored.
+`GET /splits` returns `settlements[]` — `{from_user_id, from_user_email, to_user_id, to_user_email, amount}` transfers that would zero the active balances. Balances within `0.01` of zero are ignored. These are suggestions for display; nothing is stored.
 
 ### Settle-all (Admin)
 1. The client sends the balances it is showing: `members[] {user_email, pending_amount}`.
@@ -215,7 +222,9 @@ The API uses `pending_amount` for two distinct things:
 Settlement is all-or-nothing per room: there is no single-member settle, no partial or filtered settle, and no "contribute" (lump-sum credit). Past settlements are the closed `RoomBalanceSummary` rows; there is no endpoint that lists them yet.
 
 ### Leaving and removing members
-- A member cannot exit, and an Admin cannot remove a member, while that member's net balance is non-zero — whether they owe or are owed. Settle the room first.
+- A member cannot exit, and an Admin cannot remove a member, while that member has a `SpendingSplits` row on any unsettled expense in the room — even if their net balance is zero. Settle the room first.
+- Why not just a zero net balance: unsettled expenses can still be edited or deleted, and that reverses and rebuilds their splits. If a member in the split had left, the rebuild would drop a departed payer's credit or move a departed member's balance. Settled expenses can't be changed, so after a settle-all nothing can touch a departed member's balance.
+- This also guarantees a zero net balance: a balance only moves through unsettled expenses the member is in, and settle-all zeroes it while settling every expense.
 - Removing a membership does not touch the member's expenses or splits.
 
 ### Room Deletion (Admin)

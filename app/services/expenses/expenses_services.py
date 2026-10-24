@@ -7,6 +7,7 @@ from app.models.expenses.expenses_model import (
     get_expense_by_id,
     update_expense,
     delete_expense,
+    lock_expense,
     insert_spending_splits,
     get_expense_splits,
     delete_spending_splits,
@@ -159,6 +160,8 @@ def _get_room_expense(conn: Connection, room_id: int, expense_id: int) -> dict:
 
 def _get_changeable_expense(conn: Connection, room_id: int, expense_id: int, membership: dict) -> dict:
     """The expense, if this member may edit or delete it: admins and its payer, while unsettled."""
+    # Lock before reading, so the settled check below can't go stale before we commit.
+    lock_expense(conn, expense_id)
     expense = _get_room_expense(conn, room_id, expense_id)
     if membership["role"] != "Admin" and expense["user_id"] != membership["user"]["id"]:
         raise PermissionError("Only admins or the person who paid can change this expense")
@@ -203,6 +206,8 @@ def edit_expense(
 
     if material is not None or money is not None or created_at is not None:
         updated = update_expense(conn, expense_id, material, money, created_at)
+        if updated is None:
+            raise ExpenseSettledError("Settled expenses can't be changed")
     else:
         updated = expense
 
@@ -230,7 +235,9 @@ def remove_expense(
     _get_changeable_expense(conn, room_id, expense_id, membership)
 
     _reverse_splits_and_balances(conn, room_id, expense_id)
-    delete_expense(conn, expense_id)
+    # Raising rolls back the reversal above with the rest of the transaction.
+    if not delete_expense(conn, expense_id):
+        raise ExpenseSettledError("Settled expenses can't be changed")
 
 
 def get_expense_detail(conn: Connection, room_id: int, expense_id: int) -> dict:

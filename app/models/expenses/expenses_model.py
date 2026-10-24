@@ -110,7 +110,8 @@ def update_expense(
     material: str | None,
     money: float | None,
     created_at,
-) -> dict:
+) -> dict | None:
+    """Update an unsettled expense. Returns None, changing nothing, if it is settled."""
     fields = []
     params: dict = {"expense_id": expense_id}
     if material is not None:
@@ -123,19 +124,30 @@ def update_expense(
         fields.append("created_at = :created_at")
         params["created_at"] = created_at
 
-    conn.execute(
+    row = conn.execute(
         text(f"""
             UPDATE "Spendings" SET {', '.join(fields)}
-            WHERE id = :expense_id
+            WHERE id = :expense_id AND settled IS NOT TRUE
+            RETURNING id
         """),
         params,
-    )
-    return get_expense_by_id(conn, expense_id)
+    ).fetchone()
+    return get_expense_by_id(conn, expense_id) if row else None
 
 
-def delete_expense(conn: Connection, expense_id: int) -> None:
+def delete_expense(conn: Connection, expense_id: int) -> bool:
+    """Delete an unsettled expense. Returns False, deleting nothing, if it is settled."""
+    row = conn.execute(
+        text('DELETE FROM "Spendings" WHERE id = :expense_id AND settled IS NOT TRUE RETURNING id'),
+        {"expense_id": expense_id},
+    ).fetchone()
+    return row is not None
+
+
+def lock_expense(conn: Connection, expense_id: int) -> None:
+    """Row-lock the expense until commit, so a concurrent settle-all can't settle it mid-change."""
     conn.execute(
-        text('DELETE FROM "Spendings" WHERE id = :expense_id'),
+        text('SELECT id FROM "Spendings" WHERE id = :expense_id FOR UPDATE'),
         {"expense_id": expense_id},
     )
 

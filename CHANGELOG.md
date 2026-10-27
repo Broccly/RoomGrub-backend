@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Expense responses now carry the payer's name in `user` (the field the app displays), falling back to the stored email only when the name is empty, so an expense paid by someone who has left the room is still shown by name instead of their email
 - A money-only expense edit dropped split members who had left the room, and the payer's credit with them, so the room's balances no longer summed to zero
 - Editing participants of an expense whose payer had left skipped the "payer must be in the split" check and lost the payer's credit
 

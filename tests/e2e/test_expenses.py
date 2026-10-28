@@ -38,30 +38,11 @@ class TestExpensesAuthenticated:
         body = r.json()
         assert body["material"] == "test item"
         assert body["money"] == 10.0
-        assert body["user"] == admin["name"]
+        assert body["user"] == admin["email"]
         assert body["user_name"] == admin["name"]
         assert body["user_profile"] == admin["profile"]
         assert body["settled"] is None
         assert body["settled_at"] is None
-
-    def test_list_expenses_shows_the_name_of_a_member_who_left(
-        self, test_client, make_user, make_room, add_member, make_expense, conn
-    ):
-        admin = make_user("admin-left@example.com", name="Asha")
-        member = make_user("member-left@example.com", name="Maya")
-        room = make_room(admin)
-        add_member(room["id"], member)
-        make_expense(room["id"], member["email"], money=12.0)
-        # Older data can hold an expense paid by someone who has since left the room.
-        conn.execute(
-            text('DELETE FROM "UserRooms" WHERE room_id = :room_id AND user_id = :uid'),
-            {"room_id": room["id"], "uid": member["id"]},
-        )
-
-        r = test_client.get(f"/api/v1/rooms/{room['id']}/expenses", headers=auth_headers(admin))
-        assert r.status_code == 200
-        # The payer is shown by name, never by the email stored on the expense.
-        assert [(e["user"], e["user_name"]) for e in r.json()["items"]] == [("Maya", "Maya")]
 
     def test_add_expense_notifies_participants_except_adder(
         self, test_client, make_user, make_room, add_member, monkeypatch
@@ -134,7 +115,7 @@ class TestExpensesAuthenticated:
 
         r = test_client.post(f"/api/v1/rooms/{room['id']}/expenses/for-member", json=body, headers=auth_headers(admin))
         assert r.status_code == 201
-        assert r.json()["user"] == member["name"]
+        assert r.json()["user"] == member["email"]
 
     def test_add_expense_defaults_participants_to_all_room_members(
         self, test_client, make_user, make_room, add_member

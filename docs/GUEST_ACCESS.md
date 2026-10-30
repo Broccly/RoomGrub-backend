@@ -107,10 +107,12 @@ Migration `20261030120000_users_type_and_room_cleanup`, plus the code changes be
   - It can't be promoted to Admin: `change_member_role` → 400.
   - It can't sign in. No token is ever issued for a `placeholder`.
   - Push skips it naturally, because it has no `fcm_tokens` rows.
-  - Removing it uses the existing rule: blocked while it is in any unsettled expense. The `Users` row is deleted along with the membership.
+  - Removing it uses the existing rule: blocked while it is in any unsettled expense. Only the `UserRooms` row is deleted; the `Users` row stays.
+    - Settled expenses still point at it. `Spendings.user_id` has no `ON DELETE` action, so deleting a placeholder that paid an expense would fail. The `SpendingSplits` and `RoomBalanceSummary` FKs cascade, so deleting it would also erase its share of past expenses.
+    - A removed placeholder keeps showing in expense history under its name.
   - An Admin can rename it: `PATCH /api/v1/rooms/{room_id}/members/{user_id}` `{ "name"?, "avatar"? }`, placeholders only, otherwise 400.
 - Member list and detail responses gain `is_guest` and `type`, so the app can badge "added by name" members and offer the share link to invite them.
-- **Room delete** also deletes the room's placeholder `Users` rows.
+- **Room delete** also deletes the room's placeholder `Users` rows. It does this after `delete_room_cascade` has removed the room's `Spendings`, so no rows still reference them.
 
 ---
 

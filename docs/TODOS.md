@@ -45,7 +45,7 @@ Design, rules and open decisions: [GUEST_ACCESS.md](GUEST_ACCESS.md). Build the 
 - [ ] Migration: `Users.created_by`
 - [ ] `POST /rooms/{room_id}/members/guests` (Admin) → `placeholder` user and `Member` row
 - [ ] Placeholder can't be promoted to Admin; `PATCH /rooms/{room_id}/members/{user_id}` renames placeholders only
-- [ ] Removing a placeholder deletes its `Users` row; room delete deletes the room's placeholders
+- [ ] Removing a placeholder deletes only its `UserRooms` row and keeps the `Users` row, because settled expenses still reference it. Room delete deletes the room's placeholders after their `Spendings` are gone
 - [ ] `type` / `is_guest` on member responses
 - [ ] Check old Android / web builds for `null`-email crashes first (open decision 3)
 

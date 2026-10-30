@@ -158,7 +158,7 @@ At most one active link per room (partial unique index on `room_id WHERE revoked
 
 - `POST /api/v1/auth/link` `{ "provider", "token" }`, guest only (403 for `registered`):
   1. Verify the provider token with the existing `verify_provider_token`.
-  2. **No account has this email** → upgrade in place: set `email` and `type = 'registered'` (`uid` is unchanged); fill `name`/`profile` only if empty; backfill `Spendings."user"` for the guest's expenses. The user id doesn't change, so every room, split and balance stays as it is. Publish `welcome`. The current refresh family stays valid. Return a fresh token pair.
+  2. **No account has this email** → upgrade in place: set `email` and `type = 'registered'` (`uid` is unchanged); fill `name`/`profile` only if empty; backfill `Spendings."user"` for the guest's expenses. The user id doesn't change, so every room, split and balance stays as it is. Publish `welcome`. The current refresh family stays valid. Invalidate `auth:user:{id}` and return a fresh token pair.
   3. **An account with this email already exists** (the person signed up on another device) → merge the guest into that account. Revoke all of the guest's refresh tokens and return a new token pair for the existing account.
 - Guest data can't be recovered from a different device in v1: only the device holding the guest session can link it.
 

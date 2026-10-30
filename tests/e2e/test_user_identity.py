@@ -1,8 +1,11 @@
 import uuid
 
+import jwt
 from sqlalchemy import text
 
 from app.services.auth import auth_services
+from app.utils.jwt_utils import create_jwt
+from db.config import get_jwt_secret
 from tests.e2e.conftest import auth_headers
 
 
@@ -60,8 +63,18 @@ class TestUserWithoutEmail:
 
     def test_access_token_has_no_email_claim(self, conn, test_client):
         guest = _make_user_without_email(conn, "No Mail")
+        claims = jwt.decode(create_jwt(guest), get_jwt_secret(), algorithms=["HS256"])
+        # Left out rather than null: the web app matches members on the token's email.
+        assert "email" not in claims
+        assert claims["sub"] == str(guest["id"])
+
         r = test_client.get("/api/v1/rooms", headers=auth_headers(guest))
         assert r.status_code == 200
+
+    def test_access_token_keeps_email_claim_when_set(self, make_user):
+        user = make_user("has-mail@example.com")
+        claims = jwt.decode(create_jwt(user), get_jwt_secret(), algorithms=["HS256"])
+        assert claims["email"] == "has-mail@example.com"
 
 
 class TestSettleAllIdentifiers:

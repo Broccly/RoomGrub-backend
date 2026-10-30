@@ -5,7 +5,7 @@ from pydantic import BaseModel
 class MemberRow(BaseModel):
     id: int
     user_id: int
-    email: str
+    email: str | None
     name: str | None
     profile: str | None
     role: str
@@ -22,5 +22,5 @@ class MemberPendingExpenseRow(BaseModel):
 
 class MyMembershipRow(BaseModel):
     id: int
-    email: str
+    email: str | None
     role: str

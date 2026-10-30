@@ -16,7 +16,7 @@ class LogoutRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: str | None
     name: str | None
     profile: str | None
 

@@ -10,6 +10,7 @@ def get_expenses(
     settled: bool | None = None,
     search: str | None = None,
     user_email: str | None = None,
+    user_id: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
 ) -> list[dict]:
@@ -31,8 +32,12 @@ def get_expenses(
         params["search"] = f"%{search}%"
 
     if user_email:
-        conditions.append('s."user" = :user_email')
+        conditions.append("u.email = :user_email")
         params["user_email"] = user_email
+
+    if user_id is not None:
+        conditions.append("s.user_id = :user_id")
+        params["user_id"] = user_id
 
     if date_from:
         conditions.append("s.created_at >= :date_from")
@@ -45,10 +50,10 @@ def get_expenses(
     where = " AND ".join(conditions)
     rows = conn.execute(
         text(f"""
-            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, u.email AS "user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
-            LEFT JOIN "Users" u ON u.email = s."user"
+            LEFT JOIN "Users" u ON u.id = s.user_id
             WHERE {where}
             ORDER BY s.id DESC
             LIMIT :limit
@@ -61,10 +66,10 @@ def get_expenses(
 def get_expense_by_id(conn: Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT s.id, s.room, s.user_id, s."user", s.material, s.money, s.created_at, s.settled,
+            SELECT s.id, s.room, s.user_id, u.email AS "user", s.material, s.money, s.created_at, s.settled,
                    u.name AS user_name, u.profile AS user_profile, s.settled_at
             FROM "Spendings" s
-            LEFT JOIN "Users" u ON u.email = s."user"
+            LEFT JOIN "Users" u ON u.id = s.user_id
             WHERE s.id = :expense_id
         """),
         {"expense_id": expense_id},
@@ -153,7 +158,7 @@ def lock_expense(conn: Connection, expense_id: int) -> None:
 
 
 def insert_expense(
-    conn: Connection, room_id: int, user_id: int, user_email: str, material: str, money: float, created_at=None
+    conn: Connection, room_id: int, user_id: int, user_email: str | None, material: str, money: float, created_at=None
 ) -> dict:
     row = conn.execute(
         text("""

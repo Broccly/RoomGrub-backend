@@ -9,6 +9,8 @@ class ListRoomsResponse(BaseModel):
     id: int
     members: int
     admin: str | None
+    admin_user_id: int | None
+    admin_name: str | None
 
 
 class MemberPreviewRow(BaseModel):

@@ -20,7 +20,8 @@ class ExpenseForMemberCreate(BaseModel):
 class ExpenseResponse(BaseModel):
     id: int
     room: int
-    user: str
+    # Payer's email; None when the payer has none.
+    user: str | None
     material: str
     money: float
     created_at: datetime

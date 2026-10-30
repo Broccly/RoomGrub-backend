@@ -6,7 +6,8 @@ class ExpenseRow(BaseModel):
     id: int
     room: int
     user_id: int
-    user: str
+    # Payer's email; None when the payer has none.
+    user: str | None
     material: str
     money: float
     created_at: datetime

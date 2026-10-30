@@ -69,8 +69,9 @@ dbmate new add_some_column
 | `20260724130000` | `rebuild_room_balance_from_pending` | Wipes and rebuilds splits and balances from unsettled expenses, always including the payer. Data only |
 | `20260903083333` | `replace_push_subscriptions_with_fcm_tokens` | Drops `push_subscriptions`, creates `fcm_tokens` |
 | `20261005120000` | `add_refresh_tokens` | Creates `refresh_tokens` (hashed, rotating refresh tokens — see AUTH.md) |
+| `20261030120000` | `users_type_and_room_cleanup` | Adds `Users.type`; makes `Users.email` and `Spendings."user"` nullable; drops `Users_profile_key`; regenerates `Users.uid` / `Rooms.uid` as stable UUIDs with a default; adds `Rooms.name` where missing; drops the Supabase-only legacy `Rooms.members` / `budget` / `admin`, `Users.role` and the two `Spendings` RLS policies that read it. Written with `IF [NOT] EXISTS` because Supabase and a migrations-built DB differ |
 
-Two of these are destructive on the way up and only best-effort on the way down: `20260718165615` discards lump-sum `balance` rows, and `20260903083333` discards all Web Push subscriptions.
+Three of these are destructive on the way up and only best-effort on the way down: `20260718165615` discards lump-sum `balance` rows, `20260903083333` discards all Web Push subscriptions, and `20261030120000` discards the legacy `Rooms` / `Users` columns and the old `uid` values. Take a backup before applying them to Supabase.
 
 ## Baseline migration
 

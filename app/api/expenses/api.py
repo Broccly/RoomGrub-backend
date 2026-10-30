@@ -24,6 +24,7 @@ def list_expenses(
     settled: bool | None = Query(default=None),
     search: str | None = Query(default=None),
     user_email: str | None = Query(default=None),
+    user_id: int | None = Query(default=None),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
     conn: Connection = Depends(db_conn),
@@ -31,7 +32,7 @@ def list_expenses(
 ) -> PaginatedExpenses:
     return expenses_services.list_expenses(
         conn, room_id, cursor=cursor, limit=limit,
-        settled=settled, search=search, user_email=user_email,
+        settled=settled, search=search, user_email=user_email, user_id=user_id,
         date_from=date_from, date_to=date_to,
     )
 

@@ -19,6 +19,7 @@ Read these before working on any feature:
 | `docs/MIGRATIONS.md` | Writing and applying dbmate migrations |
 | `docs/PLAN.md` | Project status by phase — what's done, what's next |
 | `docs/TODOS.md` | Open work and known code-vs-convention gaps |
+| `docs/GUEST_ACCESS.md` | Design spec for guest users, friends added by name, room names, share links and account linking (planned, PLAN.md Phase 12) |
 | `tests/README.md` | Test layout, isolation, fixtures |
 
 When you change behaviour, update the doc that describes it and add an entry to `CHANGELOG.md` under `[Unreleased]` in the same change.

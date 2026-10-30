@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Added
+
+- Groundwork for guest access ([docs/GUEST_ACCESS.md](docs/GUEST_ACCESS.md), Phase A), migration `20261030120000_users_type_and_room_cleanup`: `Users.type` (`registered` / `guest` / `placeholder`; only `registered` is created so far), and `Rooms.name` on databases that lacked it
+- `POST /rooms/{room_id}/splits/settle-all` accepts `user_id` per member; `user_email` is still accepted, and one of the two is required (`422`)
+- `GET /rooms/{room_id}/expenses` takes a `user_id` (payer) filter
+- Room responses (`GET` / `POST /rooms`, `GET /rooms/{room_id}`, dashboard) include `admin_user_id` and `admin_name`. The three admin fields now always describe the room's longest-standing Admin; before, `admin` was an arbitrary Admin
+
 ### Changed
+
+- The payer is looked up by `Spendings.user_id` everywhere (expense list and detail, member detail, dashboard, `GET /splits`) instead of by the legacy `Spendings."user"` email, which is now nullable and no longer read
+- `Users.email` is nullable (`''` became `NULL`), so every email field in responses (`email`, `user`, `user_email`, `from_user_email`, `to_user_email`, `invited_by_email`, `admin`) may be `null`. No user without an email can be created yet
+- The access token omits the `email` claim when the user has no email
+- `Users.uid` and `Rooms.uid` are stable UUIDs generated on insert; existing values were regenerated, and login no longer rewrites `Users.uid` as `"<provider>:<email>"`. Neither is exposed by the API
+- Several users can share the same avatar (`Users_profile_key` dropped)
 
 - Exiting a room (`DELETE /rooms/{room_id}/members/me`) and removing a member (`DELETE /rooms/{room_id}/members/{user_id}`) are now blocked (`400`) while the member is part of any unsettled expense, even when their net balance is zero. This replaces the net-balance check, which it covers: a balance only moves through unsettled expenses. Unsettled expenses can still be edited or deleted, which would otherwise change a departed member's balance or drop a departed payer's credit. Settle the room first (`members_model.has_unsettled_splits`)
 - `members_services.exit_room` and `remove_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
@@ -16,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A money-only edit keeps the expense's existing split exactly, and returns `400` if that split doesn't include the payer (older expenses created without them)
 - `PATCH /rooms/{room_id}/expenses/{expense_id}` rejects (`422`) any field besides `material`, `money`, `created_at` and `participant_user_ids`. Sending a payer such as `user_id` used to be silently ignored; the payer can't be changed
 - `expenses_services.add_expense` and `add_expense_for_member` raise plain exceptions; the router converts them, with status codes and messages unchanged
+
+### Removed
+
+- Legacy columns that existed only in the Supabase database: `Rooms.members`, `Rooms.budget`, `Rooms.admin` (with `Rooms_admin_fkey`) and `Users.role`, and the `admin_can_delete` / `admin_can_update` RLS policies on `Spendings` that read `Users.role`. The backend never used them; room roles are `UserRooms.role`
 
 ### Fixed
 

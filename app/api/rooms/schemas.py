@@ -4,7 +4,10 @@ from pydantic import BaseModel
 class RoomResponse(BaseModel):
     id: int
     members: int
-    admin: str
+    # Email of the room's longest-standing Admin; None if that Admin has no email.
+    admin: str | None
+    admin_user_id: int | None
+    admin_name: str | None
 
 
 class MemberPreview(BaseModel):

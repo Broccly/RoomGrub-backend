@@ -29,10 +29,17 @@ def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
         text("""
             SELECT r.id,
                    (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
-                   (SELECT u.email FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
-                    WHERE ur2.room_id = r.id AND ur2.role = 'Admin' LIMIT 1) AS admin
+                   a.email AS admin, a.id AS admin_user_id, a.name AS admin_name
             FROM "Rooms" r
             JOIN "UserRooms" ur ON ur.room_id = r.id
+            LEFT JOIN LATERAL (
+                -- The longest-standing Admin, so the three admin fields describe one person.
+                SELECT u.id, u.email, u.name
+                FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
+                WHERE ur2.room_id = r.id AND ur2.role = 'Admin'
+                ORDER BY ur2.joined_at, ur2.id
+                LIMIT 1
+            ) a ON TRUE
             WHERE ur.user_id = :user_id
             ORDER BY r.id DESC
         """),
@@ -69,9 +76,16 @@ def get_room_by_id(conn: Connection, room_id: int) -> dict | None:
         text("""
             SELECT r.id,
                    (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
-                   (SELECT u.email FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
-                    WHERE ur2.room_id = r.id AND ur2.role = 'Admin' LIMIT 1) AS admin
-            FROM "Rooms" r WHERE r.id = :room_id
+                   a.email AS admin, a.id AS admin_user_id, a.name AS admin_name
+            FROM "Rooms" r
+            LEFT JOIN LATERAL (
+                SELECT u.id, u.email, u.name
+                FROM "UserRooms" ur2 JOIN "Users" u ON u.id = ur2.user_id
+                WHERE ur2.room_id = r.id AND ur2.role = 'Admin'
+                ORDER BY ur2.joined_at, ur2.id
+                LIMIT 1
+            ) a ON TRUE
+            WHERE r.id = :room_id
         """),
         {"room_id": room_id},
     ).fetchone()
@@ -113,7 +127,7 @@ def get_member_stats(conn: Connection, room_id: int) -> list[dict]:
                 COALESCE(SUM(CASE WHEN s.settled IS NOT TRUE THEN s.money ELSE 0 END), 0) AS pending_amount
             FROM "UserRooms" ur
             JOIN "Users" u ON u.id = ur.user_id
-            LEFT JOIN "Spendings" s ON s."user" = u.email AND s.room = ur.room_id
+            LEFT JOIN "Spendings" s ON s.user_id = u.id AND s.room = ur.room_id
             WHERE ur.room_id = :room_id
             GROUP BY u.id, u.name, u.profile
             ORDER BY pending_amount DESC

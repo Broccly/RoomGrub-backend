@@ -7,11 +7,12 @@ from app.models.splits.schemas import UnsettledExpenseRow, MemberBalanceRow
 def get_unsettled_expenses(conn: Connection, room_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
-            SELECT id, "user", material, money, created_at
-            FROM "Spendings"
-            WHERE room = :room_id
-              AND (settled IS NULL OR settled = FALSE)
-            ORDER BY created_at DESC
+            SELECT s.id, u.email AS "user", s.material, s.money, s.created_at
+            FROM "Spendings" s
+            LEFT JOIN "Users" u ON u.id = s.user_id
+            WHERE s.room = :room_id
+              AND (s.settled IS NULL OR s.settled = FALSE)
+            ORDER BY s.created_at DESC
         """),
         {"room_id": room_id},
     ).fetchall()
@@ -98,15 +99,21 @@ def get_last_settled_at(conn: Connection, room_id: int) -> datetime | None:
     ).scalar()
 
 
-def get_pending_for_user(conn: Connection, room_id: int, user_email: str) -> float:
+def get_user_id_by_email(conn: Connection, email: str) -> int | None:
+    return conn.execute(
+        text('SELECT id FROM "Users" WHERE email = :email'),
+        {"email": email},
+    ).scalar()
+
+
+def get_pending_for_user(conn: Connection, room_id: int, user_id: int) -> float:
     row = conn.execute(
         text("""
-            SELECT rbs.pending_amount
-            FROM "RoomBalanceSummary" rbs
-            JOIN "Users" u ON u.id = rbs.user_id
-            WHERE rbs.room_id = :room_id AND u.email = :email AND rbs.settled_at IS NULL
+            SELECT pending_amount
+            FROM "RoomBalanceSummary"
+            WHERE room_id = :room_id AND user_id = :user_id AND settled_at IS NULL
         """),
-        {"room_id": room_id, "email": user_email},
+        {"room_id": room_id, "user_id": user_id},
     ).fetchone()
     return round(float(row.pending_amount), 2) if row else 0.0
 

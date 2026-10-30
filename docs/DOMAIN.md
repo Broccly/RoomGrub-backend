@@ -18,10 +18,11 @@ A registered person, created on first login (Google or Facebook — see [AUTH.md
 | Field      | Type      | Notes                                          |
 |------------|-----------|------------------------------------------------|
 | id         | bigint PK | Used as `sub` in the JWT and as FK everywhere new |
-| uid        | varchar   | `"<provider>:<email>"`, rewritten on each login |
-| email      | varchar   | Unique; still used as FK by `Spendings.user`   |
+| uid        | varchar   | Stable UUID, generated on insert, never changes. Not exposed by the API |
+| email      | varchar   | Unique, nullable (guests and placeholders will have none). Login matches users by it |
 | name       | text      | Refreshed from the provider on each login      |
-| profile    | text      | Avatar URL                                     |
+| profile    | text      | Avatar URL. Several users may share one        |
+| type       | text      | `registered` / `guest` / `placeholder`. Only `registered` exists today — see [GUEST_ACCESS.md](GUEST_ACCESS.md) |
 | created_at | timestamp |                                                |
 
 ### Rooms
@@ -30,11 +31,11 @@ A shared household / group. Deliberately thin — member count and admin are **d
 | Field      | Type      | Notes                                    |
 |------------|-----------|------------------------------------------|
 | id         | bigint PK |                                          |
-| uid        | varchar   | Unused by the API                        |
-| name       | text      | Unused by the API                        |
+| uid        | varchar   | Stable UUID, generated on insert. Not exposed by the API |
+| name       | text      | Nullable. Not exposed by the API yet (Phase B of GUEST_ACCESS.md) |
 | created_at | timestamp |                                          |
 
-API responses expose `members` (count of `UserRooms` rows) and `admin` (email of one Admin of the room). `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
+API responses expose `members` (count of `UserRooms` rows) and the room's longest-standing Admin as `admin` (their email, or null), `admin_user_id` and `admin_name`. `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
 
 ### UserRooms (membership)
 Many-to-many join between Users ↔ Rooms with a role.
@@ -55,7 +56,7 @@ A purchase entry paid by one member.
 | id         | bigint PK |                                                     |
 | room       | bigint FK | → Rooms.id                                          |
 | user_id    | bigint FK | → Users.id — the payer                              |
-| user       | text      | Payer's email (legacy column, still written and filtered on) |
+| user       | text      | Payer's email. Legacy and nullable: still written when the payer has an email, never read — the payer is `user_id` |
 | material   | text      | Item / description                                  |
 | money      | bigint    | Amount spent                                        |
 | created_at | timestamp | Defaults to NOW; the client may supply it           |
@@ -212,7 +213,7 @@ The API uses `pending_amount` for two distinct things:
 `GET /splits` returns `settlements[]` — `{from_user_id, from_user_email, to_user_id, to_user_email, amount}` transfers that would zero the active balances. Balances within `0.01` of zero are ignored. These are suggestions for display; nothing is stored.
 
 ### Settle-all (Admin)
-1. The client sends the balances it is showing: `members[] {user_email, pending_amount}`.
+1. The client sends the balances it is showing: `members[] {user_id, pending_amount}`. Older clients send `user_email` instead of `user_id`, which is still accepted; one of the two is required (422).
 2. For each one, the server compares against the active `RoomBalanceSummary` row. A difference greater than **0.01** rejects the request with 400 — the client is looking at stale data.
 3. Close every active `RoomBalanceSummary` row in the room (`settled_at = now()`).
 4. Open a fresh active row at `0` for every current member.
@@ -249,11 +250,22 @@ All of these are best-effort and never fail the request.
 
 ---
 
+## Planned: guest access
+
+Not built yet. The design is in [GUEST_ACCESS.md](GUEST_ACCESS.md). What it changes in this domain:
+
+- **Users.type** gains `guest` (signs up with only a name and gets RoomGrub tokens) and `placeholder` (a friend an Admin adds to one room by name; can't sign in until claimed) rows. The column, nullable `email` and `user_id`-based payer lookups are already in place (Phase A).
+- **Rooms.name** becomes part of the API: set on create, renamed by an Admin.
+- **room_share_links** (new): a reusable, revocable join link per room, alongside the single-use `Invite`.
+- **Merging users**: claiming a placeholder through a share link, or linking a guest to an existing account, moves the source user's memberships, expenses, splits and balances to the target. Refused if both are members of the same room.
+
+---
+
 ## Relationships Diagram (simplified)
 
 ```
 Users ──< UserRooms >── Rooms
-Users ──< Spendings >── Rooms                (payer: user_id, plus legacy email in "user")
+Users ──< Spendings >── Rooms                (payer: user_id; legacy email in "user", unread)
 Spendings ──< SpendingSplits >── Users       (participants + share, per expense)
 Users ──< RoomBalanceSummary >── Rooms       (one active row + N closed rows per member per room)
 Users ──< Invite    >── Rooms                (invited_by)

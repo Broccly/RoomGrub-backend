@@ -8,9 +8,10 @@ from db.config import get_jwt_secret, get_jwt_access_expiry_minutes
 def create_jwt(user: dict) -> str:
     payload = {
         "sub": str(user["id"]),
-        "email": user["email"],
         "exp": datetime.now(timezone.utc) + timedelta(minutes=get_jwt_access_expiry_minutes()),
     }
+    if user["email"] is not None:
+        payload["email"] = user["email"]
     return jwt.encode(payload, get_jwt_secret(), algorithm="HS256")
 
 

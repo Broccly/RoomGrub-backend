@@ -46,16 +46,16 @@ def get_members_by_user_ids(conn: Connection, room_id: int, user_ids: list[int])
     return [MemberRow(**r._mapping).model_dump() for r in rows]
 
 
-def get_member_pending_expenses(conn: Connection, room_id: int, user_email: str) -> list[dict]:
+def get_member_pending_expenses(conn: Connection, room_id: int, user_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
             SELECT id, material, money, created_at, settled
             FROM "Spendings"
-            WHERE room = :room_id AND "user" = :email
+            WHERE room = :room_id AND user_id = :user_id
               AND (settled IS NULL OR settled = FALSE)
             ORDER BY created_at DESC
         """),
-        {"room_id": room_id, "email": user_email},
+        {"room_id": room_id, "user_id": user_id},
     ).fetchall()
     return [MemberPendingExpenseRow(**r._mapping).model_dump() for r in rows]
 
@@ -72,15 +72,15 @@ def get_member_total_spent(conn: Connection, room_id: int, user_id: int) -> floa
     return max(0.0, float(row.total))
 
 
-def get_member_pending(conn: Connection, room_id: int, user_email: str) -> float:
+def get_member_pending(conn: Connection, room_id: int, user_id: int) -> float:
     row = conn.execute(
         text("""
             SELECT COALESCE(SUM(money), 0) AS pending
             FROM "Spendings"
-            WHERE room = :room_id AND "user" = :email
+            WHERE room = :room_id AND user_id = :user_id
               AND (settled IS NULL OR settled = FALSE)
         """),
-        {"room_id": room_id, "email": user_email},
+        {"room_id": room_id, "user_id": user_id},
     ).fetchone()
     return max(0.0, float(row.pending))
 

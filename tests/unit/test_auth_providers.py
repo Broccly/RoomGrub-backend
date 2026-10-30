@@ -4,6 +4,12 @@ from fastapi import HTTPException
 from app.utils import auth_providers
 
 
+@pytest.fixture(autouse=True)
+def google_client_id(monkeypatch):
+    # Only main.py loads .env, so set it here for runs of tests/unit on its own.
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+
+
 class TestVerifyGoogle:
     def test_valid_token_returns_user_info(self, monkeypatch):
         monkeypatch.setattr(

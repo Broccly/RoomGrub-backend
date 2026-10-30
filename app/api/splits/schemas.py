@@ -1,10 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from datetime import datetime
 
 
 class MemberBalance(BaseModel):
     user_id: int
-    user_email: str
+    user_email: str | None
     name: str | None
     profile: str | None
     # None for someone no longer in the room who still has a balance.
@@ -20,7 +20,7 @@ class MemberBalance(BaseModel):
 
 class UnsettledExpense(BaseModel):
     id: int
-    user: str
+    user: str | None
     material: str
     money: float
     created_at: datetime
@@ -28,10 +28,10 @@ class UnsettledExpense(BaseModel):
 
 class SettlementTransaction(BaseModel):
     from_user_id: int
-    from_user_email: str
+    from_user_email: str | None
     from_name: str | None
     to_user_id: int
-    to_user_email: str
+    to_user_email: str | None
     to_name: str | None
     amount: float
 
@@ -50,8 +50,16 @@ class SplitsData(BaseModel):
 
 
 class MemberPendingAmount(BaseModel):
-    user_email: str
+    # Identify the member by user_id; user_email is still accepted from older clients.
+    user_id: int | None = None
+    user_email: str | None = None
     pending_amount: float
+
+    @model_validator(mode="after")
+    def _require_identifier(self) -> "MemberPendingAmount":
+        if self.user_id is None and self.user_email is None:
+            raise ValueError("Each member needs a user_id or a user_email")
+        return self
 
 
 class SettleAllRequest(BaseModel):

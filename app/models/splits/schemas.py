@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class UnsettledExpenseRow(BaseModel):
     id: int
-    user: str
+    user: str | None
     material: str
     money: float
     created_at: datetime
@@ -12,7 +12,7 @@ class UnsettledExpenseRow(BaseModel):
 
 class MemberBalanceRow(BaseModel):
     user_id: int
-    user_email: str
+    user_email: str | None
     name: str | None
     profile: str | None
     role: str | None

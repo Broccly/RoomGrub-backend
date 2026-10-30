@@ -5,6 +5,7 @@ from app.models.splits.splits_model import (
     get_member_balances,
     get_last_settled_at,
     get_pending_for_user,
+    get_user_id_by_email,
     settle_all_room,
     get_total_pending_amount
 )
@@ -71,11 +72,16 @@ def get_splits_data(conn: Connection, room_id: int, include_expenses: bool = Tru
 
 def settle_all(conn: Connection, room_id: int, members: list[dict], redis_client: redis.Redis) -> None:
     for member in members:
-        server_pending = get_pending_for_user(conn, room_id, member["user_email"])
+        user_id = member["user_id"]
+        if user_id is None:
+            user_id = get_user_id_by_email(conn, member["user_email"])
+        # An unknown member has no balance in the room.
+        server_pending = get_pending_for_user(conn, room_id, user_id) if user_id is not None else 0.0
         if abs(server_pending - member["pending_amount"]) > TOLERANCE:
+            who = member["user_email"] if member["user_id"] is None else f"user {member['user_id']}"
             raise HTTPException(
                 status_code=400,
-                detail=f"Pending amount mismatch for {member['user_email']}: "
+                detail=f"Pending amount mismatch for {who}: "
                        f"server={server_pending:.2f}, client={member['pending_amount']:.2f}",
             )
 

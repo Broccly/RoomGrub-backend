@@ -72,7 +72,7 @@ Client replaces both stored tokens and retries the request
 | | Access token | Refresh token |
 |---|---|---|
 | Format | HS256 JWT signed with `JWT_SECRET` | Opaque random string (`secrets.token_urlsafe(48)`) |
-| Claims | `sub` (`Users.id` as a string), `email`, `exp` | None |
+| Claims | `sub` (`Users.id` as a string), `email` (left out when the user has none), `exp`. Only `sub` is read | None |
 | Lifetime | `JWT_ACCESS_EXPIRY_MINUTES` (default 15) | `REFRESH_TOKEN_EXPIRY_DAYS` (default 90), **sliding** — renewed on every refresh |
 | Sent | `Authorization: Bearer` on every request | Only in the body of `/auth/refresh` and `/auth/logout` |
 | Server state | None — verified by signature | One row in `refresh_tokens`; only the SHA-256 hash is stored |
@@ -136,8 +136,8 @@ POST /api/v1/auth/login
 | Provider token invalid, wrong issuer/audience, or missing email | 401 |
 
 The user row is upserted on email (`ON CONFLICT (email) DO UPDATE`), so `name`
-and `profile` are refreshed from the provider on every login. `uid` is stored
-as `"<provider>:<email>"`.
+and `profile` are refreshed from the provider on every login. `uid` is a UUID
+generated when the row is first inserted and is never rewritten.
 
 Every login starts a new refresh-token family, so each device has its own
 session and logging out on one does not affect the others.
@@ -359,6 +359,17 @@ Postgres.
 6. If `/auth/refresh` returns 401, the session is over: clear both tokens and show the sign-in screen. This is the only path back to provider sign-in.
 7. After login, register the device for push with `POST /api/v1/notifications/fcm-token`.
 8. On logout, unregister the FCM token (refresh first if needed), call `/auth/logout` with the refresh token, then clear local storage.
+
+---
+
+## Planned: guest sign-up and account linking
+
+Not built yet. The design is in [GUEST_ACCESS.md](GUEST_ACCESS.md).
+
+- `POST /api/v1/auth/guest` `{name, avatar?}` (public, rate-limited): creates a `type = 'guest'` user with no email and returns the same token pair as `/auth/login`. Refresh and logout work unchanged. The device's refresh token is the guest's only credential.
+- `POST /api/v1/auth/link` `{provider, token}` (guest only): upgrades the guest in place when the provider email is new, otherwise merges the guest into the existing account and returns that account's tokens.
+- `placeholder` users (friends added by name) never get tokens.
+- Login will stop overwriting a user's edited `name` / `profile` with the provider's values, and will invalidate `auth:user:{id}`.
 
 ---
 

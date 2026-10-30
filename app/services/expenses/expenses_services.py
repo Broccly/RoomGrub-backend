@@ -30,12 +30,13 @@ def list_expenses(
     settled: bool | None,
     search: str | None,
     user_email: str | None,
+    user_id: int | None,
     date_from: str | None,
     date_to: str | None,
 ) -> dict:
     items = get_expenses(
         conn, room_id, cursor=cursor, limit=limit,
-        settled=settled, search=search, user_email=user_email,
+        settled=settled, search=search, user_email=user_email, user_id=user_id,
         date_from=date_from, date_to=date_to,
     )
     next_cursor = items[-1]["id"] if len(items) == limit else None

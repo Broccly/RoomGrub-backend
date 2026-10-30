@@ -50,7 +50,6 @@ def login(conn: Connection, provider: str, token: str, redis_client: redis.Redis
     user_info = verify_provider_token(provider, token)
     user = upsert_user(
         conn,
-        uid=f"{provider}:{user_info['email']}",
         email=user_info["email"],
         name=user_info["name"],
         profile=user_info["picture"],

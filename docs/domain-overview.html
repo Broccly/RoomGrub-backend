@@ -340,7 +340,7 @@ erDiagram
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">id</td><td class="note">PK</td></tr>
-            <tr><td class="field">email</td><td class="note">unique; still stored on Spendings as the payer's email</td></tr>
+            <tr><td class="field">email</td><td class="note">unique, optional</td></tr>
             <tr><td class="field">name</td><td class="note"></td></tr>
           </table>
         </div>
@@ -373,6 +373,14 @@ erDiagram
             <tr><td class="field">settled_at</td><td class="note">stamped by settle-all</td></tr>
           </table>
         </div>
+      </div>
+      <br />
+      <div class="callout">
+        <strong>Planned: guest access</strong> (<code>docs/GUEST_ACCESS.md</code>). Users already have a
+        <code>type</code> and an optional email, and the payer is identified only by <code>Spendings.user_id</code>.
+        Still to come: guest users (a name only, with RoomGrub tokens), placeholders (a friend an admin adds to one
+        room by name), room names in the API and a reusable share link. Because guests are ordinary Users rows, the
+        split and balance flow below stays the same.
       </div>
     </section>
 

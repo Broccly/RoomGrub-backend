@@ -101,7 +101,7 @@ def auth_headers(user: dict) -> dict[str, str]:
 @pytest.fixture
 def make_user(conn):
     def _make_user(email: str, name: str | None = "Test User", profile: str | None = None) -> dict:
-        return upsert_user(conn, uid=f"uid-{email}", email=email, name=name, profile=profile)
+        return upsert_user(conn, email=email, name=name, profile=profile)
 
     return _make_user
 

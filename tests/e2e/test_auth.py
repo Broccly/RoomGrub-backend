@@ -305,7 +305,7 @@ def test_replay_revokes_token_issued_by_concurrent_refresh(db_engine):
     email = "refresh-race@example.com"
     now = datetime.now(timezone.utc)
     with db_engine.begin() as setup:
-        user = upsert_user(setup, uid=f"uid-{email}", email=email, name="Race User", profile=None)
+        user = upsert_user(setup, email=email, name="Race User", profile=None)
         family_id = uuid.uuid4()
         spent = auth_services._issue_refresh_token(setup, user["id"], family_id, now)
         live = auth_services._issue_refresh_token(setup, user["id"], family_id, now)

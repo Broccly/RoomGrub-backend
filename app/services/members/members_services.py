@@ -23,9 +23,9 @@ def get_member_detail(conn: Connection, room_id: int, user_id: int) -> dict:
     member = get_member_by_user_id(conn, room_id, user_id)
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
-    expenses = get_member_pending_expenses(conn, room_id, member["email"])
+    expenses = get_member_pending_expenses(conn, room_id, user_id)
     total_spent = get_member_total_spent(conn, room_id, user_id)
-    pending = get_member_pending(conn, room_id, member["email"])
+    pending = get_member_pending(conn, room_id, user_id)
     return {**member, "total_spent": total_spent, "pending_amount": pending, "expenses": expenses}
 
 

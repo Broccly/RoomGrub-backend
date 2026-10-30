@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class UpsertUserRow(BaseModel):
     id: int
     uid: str
-    email: str
+    email: str | None
     name: str | None
     profile: str | None
     inserted: bool
@@ -15,7 +15,7 @@ class UpsertUserRow(BaseModel):
 class RefreshTokenRow(BaseModel):
     id: int
     user_id: int
-    email: str
+    email: str | None
     family_id: UUID
     expires_at: datetime
     used_at: datetime | None

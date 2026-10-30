@@ -134,7 +134,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Rooms
 | Method | Path                                | Access | Description                                       |
 |--------|-------------------------------------|--------|---------------------------------------------------|
-| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars) |
+| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars). Room responses carry `members` and the longest-standing Admin as `admin` (email), `admin_user_id`, `admin_name` |
 | POST   | `/api/v1/rooms`                     | User   | Create a room; creator becomes Admin              |
 | GET    | `/api/v1/rooms/{room_id}`           | Member | Room summary: `total_spent`, `pending_amount`     |
 | GET    | `/api/v1/rooms/{room_id}/dashboard` | Member | Room + per-member unsettled spend                 |
@@ -143,7 +143,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Expenses
 | Method | Path                                              | Access | Description                               |
 |--------|---------------------------------------------------|--------|-------------------------------------------|
-| GET    | `/api/v1/rooms/{room_id}/expenses`                | Member | Paginated list (cursor-based). Filters: `settled`, `search`, `user_email`, `date_from`, `date_to` |
+| GET    | `/api/v1/rooms/{room_id}/expenses`                | Member | Paginated list (cursor-based). Filters: `settled`, `search`, `user_id` / `user_email` (payer), `date_from`, `date_to` |
 | GET    | `/api/v1/rooms/{room_id}/expenses/frequent-items` | Member | `{items}`: most-used item names across the latest 100 expenses (comma-split, case-insensitive, latest spelling); `limit` 1–20, default 6 |
 | POST   | `/api/v1/rooms/{room_id}/expenses`                | Member | Add expense paid by self; optional `participant_user_ids` (must include self) |
 | GET    | `/api/v1/rooms/{room_id}/expenses/{expense_id}`   | Member | Expense detail with payer and per-participant split |
@@ -155,7 +155,7 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | Method | Path                                         | Access | Description                               |
 |--------|----------------------------------------------|--------|-------------------------------------------|
 | GET    | `/api/v1/rooms/{room_id}/splits`             | Member | Member balances and spend/share totals, unsettled expenses (skip with `?include_expenses=false`), suggested settlements, room `total_pending` / `total_spent` / `unsettled_count` / `last_settled_at` |
-| POST   | `/api/v1/rooms/{room_id}/splits/settle-all`  | Admin  | Settle the whole room after verifying client-sent balances |
+| POST   | `/api/v1/rooms/{room_id}/splits/settle-all`  | Admin  | Settle the whole room after verifying client-sent balances (`members[] {user_id or user_email, pending_amount}`) |
 
 ### Members
 | Method | Path                                                | Access    | Description                          |
@@ -192,6 +192,21 @@ The room-scoped activity-log router exists in `app/api/notifications/api.py` but
 | Method | Path      | Access | Description                    |
 |--------|-----------|--------|--------------------------------|
 | GET    | `/health` | Public | Liveness check (no DB access)  |
+
+### Planned (not built): guest access
+Designed in [GUEST_ACCESS.md](GUEST_ACCESS.md). Move each route into the tables above when it ships.
+
+| Method | Path | Access | Phase |
+|--------|------|--------|-------|
+| POST | `/api/v1/auth/guest` | Public | C |
+| POST | `/api/v1/auth/link` | Guest | F |
+| GET / PATCH | `/api/v1/users/me` | User | B |
+| PATCH | `/api/v1/rooms/{room_id}` | Admin | B |
+| POST | `/api/v1/rooms/{room_id}/members/guests` | Admin | D |
+| PATCH | `/api/v1/rooms/{room_id}/members/{user_id}` | Admin | D |
+| GET / POST / DELETE | `/api/v1/rooms/{room_id}/share-link` | Member / Admin / Admin | E |
+| GET | `/api/v1/join/{token}` | Public | E |
+| POST | `/api/v1/join/{token}` | User | E |
 
 ---
 

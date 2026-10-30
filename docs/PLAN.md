@@ -4,7 +4,7 @@
 
 Extract all backend logic from the tightly-coupled Next.js app (`/Broccly/RoomGrub`) into a standalone **Python FastAPI** service, so the RoomGrub web app and the Android app share one API.
 
-**Status (2026-10-21, v1.3.0):** the API is feature-complete for rooms, expenses, splits, members and invites, and has been extended beyond the original monolith with explicit expense participants, precomputed balances, an event stream and FCM push. 1.3.0 shipped refresh tokens (Phase 1b) and the endpoints behind the Android redesign (one-call Home totals on `/splits`, room avatars, suggestion chips, owner and participant expense edits). What remains is hardening, the activity log decision, and finishing the client migrations.
+**Status (2026-10-21, v1.3.0):** the API is feature-complete for rooms, expenses, splits, members and invites, and has been extended beyond the original monolith with explicit expense participants, precomputed balances, an event stream and FCM push. 1.3.0 shipped refresh tokens (Phase 1b) and the endpoints behind the Android redesign (one-call Home totals on `/splits`, room avatars, suggestion chips, owner and participant expense edits). What remains is hardening, the activity log decision, and finishing the client migrations. Next feature work is Phase 12, guest access and growth ([GUEST_ACCESS.md](GUEST_ACCESS.md)).
 
 This file tracks phases. The granular checklist is [TODOS.md](TODOS.md); dated detail is in [CHANGELOG.md](../CHANGELOG.md).
 
@@ -60,29 +60,38 @@ Create, public validate, idempotent accept, reject, 7-day expiry.
 ### Phase 8 — Testing & Hardening — in progress
 - ✅ e2e suite against a disposable Postgres, unit tests for auth providers and push
 - ⬜ Bring services in line with the error-handling convention (plain exceptions, routers convert)
-- ⬜ Fix the stale notifications tests and regenerate `db/schema.sql`
-- ⬜ Resolve the split edge cases listed in TODOS.md (payer outside participants on create, rounding). Settled-expense edits are blocked since 1.3.0
+- ✅ Fix the stale notifications tests and regenerate `db/schema.sql`
+- ✅ Resolve the split edge cases listed in TODOS.md (payer outside participants on create, rounding). Settled-expense edits are blocked since 1.3.0
 - ⬜ Settlement-history endpoint
 
 ### Phase 9 — Web App Migration — tracked in the web repo
 Update the `RoomGrub` Next.js app to call this API instead of Server Actions:
-- ⬜ Replace all `'use server'` action files with `fetch()` calls
-- ⬜ Log in via `POST /auth/login` and send the RoomGrub JWT
-- ⬜ Refresh token in an httpOnly cookie on the Next.js server, silent refresh on 401
-- ⬜ Remove `src/database/` and `src/services/NotificationService.js`
+- ✅ Replace all `'use server'` action files with `fetch()` calls
+- ✅ Log in via `POST /auth/login` and send the RoomGrub JWT
+- ✅ Refresh token in an httpOnly cookie on the Next.js server, silent refresh on 401
+- ✅ Remove `src/database/` and `src/services/NotificationService.js`
 
 ### Phase 10 — Android App Integration — tracked in the app repo
-- ⬜ Google sign-in → `POST /auth/login`; store both tokens
-- ⬜ Refresh on 401 and retry; back to sign-in only when `/auth/refresh` itself returns 401; call `/auth/logout` on logout
-- ⬜ Register / unregister the FCM token around login / logout
-- ⬜ Handle `expense_added` push payloads (`room_id`, `expense_id`)
-- ⬜ Test all endpoints from the app
+- ✅ Google sign-in → `POST /auth/login`; store both tokens
+- ✅ Refresh on 401 and retry; back to sign-in only when `/auth/refresh` itself returns 401; call `/auth/logout` on logout
+- ✅ Register / unregister the FCM token around login / logout
+- ✅ Handle `expense_added` push payloads (`room_id`, `expense_id`)
+- ✅ Test all endpoints from the app
 
 ### Phase 11 — Production
 - ⬜ Prod database, `PROD_DB_*` vars and migration path (MIGRATIONS.md)
 - ⬜ CORS origins from config
 - ⬜ Readiness check that touches the DB
 - ⬜ Git tags per release
+
+### Phase 12 — Guest access & growth — planned
+Remove the two growth blockers: you must sign in before you can use the app, and a group can't start until friends accept an invite. Full design and open decisions are in [GUEST_ACCESS.md](GUEST_ACCESS.md); the checklist is in [TODOS.md](TODOS.md). Guests are ordinary `Users` rows with a `type` (`registered` / `guest` / `placeholder`), so the split and balance engine is reused unchanged. Each sub-phase ships on its own and stays backward compatible with current clients.
+- ✅ **A — Remove the email dependency** (unreleased). `Users.type`, nullable `Users.email` and `Spendings."user"`, stable `uid`s for users and rooms, legacy `Rooms` / `Users` columns dropped, email-keyed queries and settle-all moved to `user_id`. No visible change
+- ⬜ **B — Room names and profile edits.** Optional `name` on `POST /rooms`, `PATCH /rooms/{room_id}`, `PATCH /users/me`; login stops overwriting an edited name/avatar
+- ⬜ **C — Guest sign-up.** `POST /auth/guest` (name, optional avatar) → normal token pair; per-IP rate limit
+- ⬜ **D — Friends added by name.** `POST /rooms/{room_id}/members/guests` creates a `placeholder` member an Admin can split with
+- ⬜ **E — Public room link.** Reusable, revocable `room_share_links`; public `GET /join/{token}` preview; `POST /join/{token}`, optionally claiming a placeholder
+- ⬜ **F — Guest signs in later.** `POST /auth/link` upgrades the guest in place, or merges it into an existing account
 
 The boxes in Phases 9–10 list what this backend expects from the clients; their actual progress is not tracked here.
 

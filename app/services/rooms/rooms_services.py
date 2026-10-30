@@ -20,7 +20,13 @@ from app.cache.auth_cache import invalidate_all_room_access_for_room
 def create_room(conn: Connection, current_user: dict) -> dict:
     room = insert_room(conn)
     insert_user_room(conn, user_id=current_user["id"], room_id=room["id"], role="Admin")
-    return {**room, "members": 1, "admin": current_user["email"]}
+    return {
+        **room,
+        "members": 1,
+        "admin": current_user["email"],
+        "admin_user_id": current_user["id"],
+        "admin_name": current_user["name"],
+    }
 
 
 def list_rooms(conn: Connection, current_user: dict) -> list[dict]:

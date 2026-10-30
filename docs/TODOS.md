@@ -9,10 +9,11 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] `expenses_model.get_expenses` and `update_expense` assemble their `WHERE` / `SET` clauses with f-strings. Values are bound and the fragments are static, so it is not injectable, but it breaks the "no f-string SQL" rule — rewrite as static parameterized queries, as was done for the splits filters in 1.0.0.
 
 ### Stale artifacts
-- [ ] `db/schema.sql` is current up to migration `20261005120000`, but it is dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
+- [x] `db/schema.sql` is current up to migration `20261005120000`, but it is dumped from the Supabase project, so it carries the `auth` / `storage` / `realtime` schemas and legacy `Rooms` / `Users` columns that the migrations never create. Dump it from a database built purely from `db/migrations/`.
 - [ ] `tests/e2e/test_notifications.py` still exercises the deleted `/rooms/{room_id}/push-subscriptions` routes and the unmounted notifications router. Rewrite it against `POST` / `DELETE /api/v1/notifications/fcm-token`.
 - [ ] Drop `alembic` from `requirements.txt` and `pyproject.toml` — migrations are dbmate.
 - [ ] `pytest` is not declared in `requirements.txt` or `pyproject.toml`, so a fresh virtualenv needs a manual `pip install pytest` (CONTRIBUTING.md says so). Add it as a dev dependency.
+- [ ] Review the remaining permissive Supabase RLS policies (insert/select/update for `anon`/`authenticated` on `Users`, `Rooms`, `Spendings`, `Invite`, `notifications`). The backend bypasses RLS, so they only matter for direct Supabase-key access, which no client uses any more. `admin_can_delete` / `admin_can_update` on `Spendings` were dropped in `20261030120000`.
 - [ ] Drop the unused `SpendingParticipants` table (created by the baseline migration, superseded by `SpendingSplits`).
 - [ ] Tag releases in git (`v1.0.0`, `v1.1.0`, `v1.2.0`) to match CHANGELOG.md.
 
@@ -20,9 +21,43 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] If the payer is not in `participant_user_ids` on **create**, no split row records `amount_paid`, so the balances for that expense don't net to zero. Edits already require the payer to stay in the split; decide whether creation should too.
 - [ ] Share rounding: `round(money / n, 2)` per participant can leave a cent of drift per expense. Assign the remainder to one participant so splits always sum to `money`.
 - [ ] `Spendings.money` is `bigint` while the API accepts fractional amounts and splits are `numeric(10,2)` — confirm whether fractional expenses are meant to be supported and align the column.
-- [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused).
+- [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused). Folded into Guest access Phase B below.
 - [ ] Settle-all only verifies the members the client sends. Decide whether to require every member with a non-zero balance.
 - [ ] Events are published before the request's transaction commits; a later rollback would leave a `welcome` / `expense_split` event for something that didn't happen.
+
+### Guest access & growth (PLAN.md Phase 12)
+Design, rules and open decisions: [GUEST_ACCESS.md](GUEST_ACCESS.md). Build the phases in order; each one needs a dbmate migration where noted, e2e tests, the matching doc updates (move rules from GUEST_ACCESS.md into DOMAIN / AUTH / ARCHITECTURE) and a CHANGELOG entry.
+
+**Before Phase B onwards:** settle open decisions 2–5 in GUEST_ACCESS.md.
+
+**A — Remove the email dependency** — done (migration `20261030120000`); see the Done section below. Still to do: apply the migration to Supabase dev (backup first), then regenerate `db/schema.sql`.
+
+**B — Room names and profile edits**
+- [ ] `POST /rooms` with optional `{name}`; `name` in all room responses; `PATCH /rooms/{room_id}` (Admin)
+- [ ] New `users` domain: `GET` / `PATCH /users/me` (`name`, `avatar`); invalidate `auth:user:{id}`
+- [ ] `upsert_user` fills `name` / `profile` only when empty; login invalidates `auth:user:{id}` (behaviour change → CHANGELOG)
+
+**C — Guest sign-up**
+- [ ] `POST /auth/guest` → `type = 'guest'`, normal token pair, no `welcome` event; `type` on `get_current_user` and its cache
+- [ ] Per-IP rate limit (Redis, fail-open) on `/auth/guest`
+
+**D — Friends added by name**
+- [ ] Migration: `Users.created_by`
+- [ ] `POST /rooms/{room_id}/members/guests` (Admin) → `placeholder` user and `Member` row
+- [ ] Placeholder can't be promoted to Admin; `PATCH /rooms/{room_id}/members/{user_id}` renames placeholders only
+- [ ] Removing a placeholder deletes its `Users` row; room delete deletes the room's placeholders
+- [ ] `type` / `is_guest` on member responses
+- [ ] Check old Android / web builds for `null`-email crashes first (open decision 3)
+
+**E — Public room link**
+- [ ] Migration: `room_share_links` (one active link per room)
+- [ ] `GET` (Member) / `POST` (Admin, create or rotate) / `DELETE` (Admin) `/rooms/{room_id}/share-link`
+- [ ] Public `GET /join/{token}` preview including claimable placeholders
+- [ ] `POST /join/{token}` with optional `claim_user_id` → idempotent join, placeholder claim through the merge service
+
+**F — Guest signs in later**
+- [ ] `users_services.merge_user_into` (lock order, same-room conflict → 409, repoint every FK, revoke source tokens, cache invalidation); also used by E
+- [ ] `POST /auth/link`: upgrade in place when the email is new, otherwise merge into the existing account
 
 ### Features not built yet
 - [ ] `POST /api/v1/auth/logout-all` — sign out every device of a user (revoke all their refresh-token families).
@@ -36,10 +71,10 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] Prod environment: `PROD_DB_*` vars, `prod_database_url` in `scripts/db_url.sh` (see MIGRATIONS.md).
 
 ### Clients
-- [ ] Web (Next.js): replace remaining Server Actions with calls to this API; send the RoomGrub JWT.
-- [ ] Web (Next.js): keep the refresh token in an httpOnly cookie owned by the Next.js server, refresh on `401 Token expired`, single-flight the refresh, sign out only when `/auth/refresh` returns 401.
-- [ ] Android: register / unregister the FCM token around login / logout; handle `expense_added` push payloads.
-- [ ] Android: store the refresh token in Keystore-backed storage, refresh on `401 Token expired` and retry once, single-flight the refresh, call `/auth/logout` on logout, sign out only when `/auth/refresh` returns 401.
+- [x] Web (Next.js): replace remaining Server Actions with calls to this API; send the RoomGrub JWT.
+- [x] Web (Next.js): keep the refresh token in an httpOnly cookie owned by the Next.js server, refresh on `401 Token expired`, single-flight the refresh, sign out only when `/auth/refresh` returns 401.
+- [x] Android: register / unregister the FCM token around login / logout; handle `expense_added` push payloads.
+- [x] Android: store the refresh token in Keystore-backed storage, refresh on `401 Token expired` and retry once, single-flight the refresh, call `/auth/logout` on logout, sign out only when `/auth/refresh` returns 401.
 - [ ] Email consumer for the `rg:emails` stream lives outside this repo — document its contract there and link it from ARCHITECTURE.md.
 
 ---
@@ -92,6 +127,12 @@ Designed but deliberately not built: the `WRITE_PRECOMPUTED_SPLITS` feature flag
 - [x] `PATCH .../members/{user_id}/role` — Admin, no self-demotion
 - [x] `DELETE .../members/{user_id}` — Admin, not self, no-unsettled-expenses guard
 - [x] `DELETE .../members/me` — non-admin, no-unsettled-expenses guard
+
+### Guest access — Phase A
+- [x] Migration `20261030120000`: `Users.type`, nullable `Users.email` (`''` → `NULL`), dropped `Users_profile_key`, stable UUID `uid` on `Users` and `Rooms`, `Rooms.name` everywhere, nullable `Spendings."user"`; legacy `Rooms.members` / `budget` / `admin`, `Users.role` and two RLS policies dropped
+- [x] Payer lookups by `Spendings.user_id` (expenses, member detail, dashboard, splits); `user_id` expense filter
+- [x] Settle-all accepts `user_id` or `user_email`
+- [x] `admin_user_id` / `admin_name` on room responses; JWT `email` claim optional; email fields nullable
 
 ### Invites
 - [x] `POST /api/v1/rooms/{room_id}/invites` — Admin

@@ -135,9 +135,12 @@ POST /api/v1/auth/login
 | Unknown provider | 400 |
 | Provider token invalid, wrong issuer/audience, or missing email | 401 |
 
-The user row is upserted on email (`ON CONFLICT (email) DO UPDATE`), so `name`
-and `profile` are refreshed from the provider on every login. `uid` is a UUID
-generated when the row is first inserted and is never rewritten.
+The user row is upserted on email (`ON CONFLICT (email) DO UPDATE`). A new user
+gets the provider's `name` and photo (`profile`). For an existing user they only
+fill values that are empty, so a name or avatar the user edited with
+`PATCH /users/me` is never overwritten. Login then invalidates `auth:user:{id}`,
+since the upsert may have changed the row. `uid` is a UUID generated when the row
+is first inserted and is never rewritten.
 
 Every login starts a new refresh-token family, so each device has its own
 session and logging out on one does not affect the others.
@@ -287,7 +290,7 @@ Both lookups are cached in Redis with a 7-day TTL (`CACHE_TTL_SECONDS`):
 
 | Key | Value | Invalidated on |
 |-----|-------|----------------|
-| `auth:user:{user_id}` | `{id, email, name, profile}` | Nothing — expires by TTL only |
+| `auth:user:{user_id}` | `{id, email, name, profile}` | Login, profile edit (`PATCH /users/me`) |
 | `access:{user_id}:{room_id}` | `{id, role}` | Invite accept, role change, member remove, room exit, room delete |
 
 Redis is fail-open: any error falls through to Postgres, and a circuit breaker
@@ -369,7 +372,6 @@ Not built yet. The design is in [GUEST_ACCESS.md](GUEST_ACCESS.md).
 - `POST /api/v1/auth/guest` `{name, avatar?}` (public, rate-limited): creates a `type = 'guest'` user with no email and returns the same token pair as `/auth/login`. Refresh and logout work unchanged. The device's refresh token is the guest's only credential.
 - `POST /api/v1/auth/link` `{provider, token}` (guest only): upgrades the guest in place when the provider email is new, otherwise merges the guest into the existing account and returns that account's tokens.
 - `placeholder` users (friends added by name) never get tokens.
-- Login will stop overwriting a user's edited `name` / `profile` with the provider's values, and will invalidate `auth:user:{id}`.
 
 ---
 

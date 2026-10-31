@@ -127,17 +127,18 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 ### Auth
 | Method | Path                  | Access | Description                                        |
 |--------|-----------------------|--------|----------------------------------------------------|
-| POST   | `/api/v1/auth/login`  | Public | Exchange a Google/Facebook token for a RoomGrub access token and refresh token; upserts the user |
+| POST   | `/api/v1/auth/login`  | Public | Exchange a Google/Facebook token for a RoomGrub access token and refresh token; upserts the user (provider name/photo only fill empty values) |
 | POST   | `/api/v1/auth/refresh` | Public | Trade a refresh token for a new access + refresh token pair (rotation) |
 | POST   | `/api/v1/auth/logout`  | Public | Revoke the device's refresh tokens; 204 |
 
 ### Rooms
 | Method | Path                                | Access | Description                                       |
 |--------|-------------------------------------|--------|---------------------------------------------------|
-| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars). Room responses carry `members` and the longest-standing Admin as `admin` (email), `admin_user_id`, `admin_name` |
-| POST   | `/api/v1/rooms`                     | User   | Create a room; creator becomes Admin              |
+| GET    | `/api/v1/rooms`                     | User   | List rooms for current user, each with a `member_preview` (first 4 avatars). Room responses carry `name` (`null` for rooms created before names), `members` and the longest-standing Admin as `admin` (email), `admin_user_id`, `admin_name` |
+| POST   | `/api/v1/rooms`                     | User   | Create a room; creator becomes Admin. Optional body `{name}` (1–50 chars after trimming, else 422); no body still works |
 | GET    | `/api/v1/rooms/{room_id}`           | Member | Room summary: `total_spent`, `pending_amount`     |
 | GET    | `/api/v1/rooms/{room_id}/dashboard` | Member | Room + per-member unsettled spend                 |
+| PATCH  | `/api/v1/rooms/{room_id}`           | Admin  | Rename the room: `{name}`, same rules as create; returns the room |
 | DELETE | `/api/v1/rooms/{room_id}`           | Admin  | Delete room (blocked while unsettled expenses remain) |
 
 ### Expenses
@@ -170,9 +171,15 @@ All routes are prefixed with `/api/v1`. No trailing slashes. "Member" / "Admin" 
 | Method | Path                                | Access | Description                     |
 |--------|-------------------------------------|--------|---------------------------------|
 | POST   | `/api/v1/rooms/{room_id}/invites`   | Admin  | Create invite link              |
-| GET    | `/api/v1/invites/{token}`           | Public | Validate invite token           |
+| GET    | `/api/v1/invites/{token}`           | Public | Validate invite token; returns `room_name` with the inviter |
 | POST   | `/api/v1/invites/{token}/accept`    | User   | Accept invite (join room)       |
 | POST   | `/api/v1/invites/{token}/reject`    | User   | Reject invite                   |
+
+### Users
+| Method | Path                 | Access | Description |
+|--------|----------------------|--------|-------------|
+| GET    | `/api/v1/users/me`   | User   | Own profile: `id`, `email`, `name`, `profile`, `type` |
+| PATCH  | `/api/v1/users/me`   | User   | Edit own `name` (1–50 chars after trimming, not null; else 422) and/or `avatar` (an `https` URL on a host in `AVATAR_ALLOWED_HOSTS`, stored in `Users.profile`; `null` removes it; else 400). Empty body → 400 |
 
 ### Push
 | Method | Path                               | Access | Description                               |
@@ -200,8 +207,6 @@ Designed in [GUEST_ACCESS.md](GUEST_ACCESS.md). Move each route into the tables 
 |--------|------|--------|-------|
 | POST | `/api/v1/auth/guest` | Public | C |
 | POST | `/api/v1/auth/link` | Guest | F |
-| GET / PATCH | `/api/v1/users/me` | User | B |
-| PATCH | `/api/v1/rooms/{room_id}` | Admin | B |
 | POST | `/api/v1/rooms/{room_id}/members/guests` | Admin | D |
 | PATCH | `/api/v1/rooms/{room_id}/members/{user_id}` | Admin | D |
 | GET / POST / DELETE | `/api/v1/rooms/{room_id}/share-link` | Member / Admin / Admin | E |
@@ -233,7 +238,7 @@ Redis (hosted on Upstash) caches two hot, low-cardinality lookups using a cache-
 - **Auth**: `get_current_user` (`app/dependencies/current_user.py`) checks `auth:user:{user_id}` before querying `Users`; on a miss it queries Postgres and populates the cache.
 - **Room access**: `require_room_member` (`app/dependencies/room_access.py`) checks `access:{user_id}:{room_id}` before querying `UserRooms`; on a miss it queries Postgres and populates the cache.
 
-Both keys carry a **7-day TTL** as a safety-net backstop, not the primary consistency mechanism — consistency for room access comes from **active invalidation on every write** that changes membership or role: room deletion, invite acceptance, role change, member removal, and self-exit (see the corresponding service functions in `app/services/rooms/`, `app/services/invites/`, `app/services/members/`, which call the `invalidate_*` helpers in `app/cache/auth_cache.py` after the underlying write). The `auth:user` key is not actively invalidated.
+Both keys carry a **7-day TTL** as a safety-net backstop, not the primary consistency mechanism — consistency for room access comes from **active invalidation on every write** that changes membership or role: room deletion, invite acceptance, role change, member removal, and self-exit (see the corresponding service functions in `app/services/rooms/`, `app/services/invites/`, `app/services/members/`, which call the `invalidate_*` helpers in `app/cache/auth_cache.py` after the underlying write). The `auth:user` key is invalidated when a user edits their profile (`users_services.update_me`) and on every login (`auth_services.login`), since the login upsert may fill an empty name or photo.
 
 **Redis is never a dependency — only an optimization.** All cache operations are wrapped so a Redis outage degrades to "always miss" instead of failing requests:
 - Every `get_cached_*`/`set_cached_*`/`invalidate_*` call catches `redis.RedisError` (and `ValueError` for corrupt JSON), logs a warning, and falls through to Postgres.

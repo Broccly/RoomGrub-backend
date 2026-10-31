@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class InviteByTokenRow(BaseModel):
     token: str
     room_id: int
+    room_name: str | None
     status: str
     created_at: datetime
     invited_by_email: str | None

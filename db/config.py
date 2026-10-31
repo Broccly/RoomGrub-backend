@@ -65,3 +65,10 @@ def get_google_client_id():
 
 def get_firebase_credentials_json() -> str | None:
   return os.environ.get("FIREBASE_CREDENTIALS_JSON")
+# Hosts an avatar URL may point at. Defaults to the Google and Facebook photo hosts so
+# provider photos stay valid; add the S3 / R2 bucket host once uploads exist.
+_DEFAULT_AVATAR_ALLOWED_HOSTS = "lh3.googleusercontent.com,platform-lookaside.fbsbx.com"
+
+def get_avatar_allowed_hosts() -> set[str]:
+  raw = os.environ.get("AVATAR_ALLOWED_HOSTS", _DEFAULT_AVATAR_ALLOWED_HOSTS)
+  return {host.strip().lower() for host in raw.split(",") if host.strip()}

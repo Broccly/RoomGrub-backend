@@ -341,7 +341,8 @@ erDiagram
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">id</td><td class="note">PK</td></tr>
             <tr><td class="field">email</td><td class="note">unique, optional</td></tr>
-            <tr><td class="field">name</td><td class="note"></td></tr>
+            <tr><td class="field">name</td><td class="note">user-editable</td></tr>
+            <tr><td class="field">profile</td><td class="note">avatar URL, user-editable</td></tr>
           </table>
         </div>
         <div class="card">
@@ -350,6 +351,7 @@ erDiagram
           <table class="schema">
             <tr><th>Field</th><th>Note</th></tr>
             <tr><td class="field">id</td><td class="note">PK</td></tr>
+            <tr><td class="field">name</td><td class="note">optional, Admin renames</td></tr>
           </table>
         </div>
         <div class="card">
@@ -377,9 +379,10 @@ erDiagram
       <br />
       <div class="callout">
         <strong>Planned: guest access</strong> (<code>docs/GUEST_ACCESS.md</code>). Users already have a
-        <code>type</code> and an optional email, and the payer is identified only by <code>Spendings.user_id</code>.
+        <code>type</code> and an optional email, the payer is identified only by <code>Spendings.user_id</code>,
+        rooms have names, and users can edit their own name and avatar.
         Still to come: guest users (a name only, with RoomGrub tokens), placeholders (a friend an admin adds to one
-        room by name), room names in the API and a reusable share link. Because guests are ordinary Users rows, the
+        room by name) and a reusable share link. Because guests are ordinary Users rows, the
         split and balance flow below stays the same.
       </div>
     </section>

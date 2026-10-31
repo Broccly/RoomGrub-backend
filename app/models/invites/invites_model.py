@@ -14,12 +14,20 @@ def insert_invite(conn: Connection, room_id: int, invited_by_id: int) -> str:
     return row.token
 
 
+def get_room_name(conn: Connection, room_id: int) -> str | None:
+    return conn.execute(
+        text('SELECT name FROM "Rooms" WHERE id = :room_id'),
+        {"room_id": room_id},
+    ).scalar_one_or_none()
+
+
 def get_invite_by_token(conn: Connection, token: str) -> dict | None:
     row = conn.execute(
         text("""
             SELECT
                 i.token::text,
                 i.room AS room_id,
+                r.name AS room_name,
                 i.status,
                 i.created_at,
                 u.email AS invited_by_email,
@@ -27,6 +35,7 @@ def get_invite_by_token(conn: Connection, token: str) -> dict | None:
                 u.profile AS invited_by_profile
             FROM "Invite" i
             JOIN "Users" u ON u.id = i.invited_by
+            JOIN "Rooms" r ON r.id = i.room
             WHERE i.token::text = :token
         """),
         {"token": token},

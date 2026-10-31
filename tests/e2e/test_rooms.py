@@ -19,6 +19,9 @@ class TestRoomsUnauthenticated:
     def test_delete_room(self, test_client):
         assert test_client.delete(f"/api/v1/rooms/{ROOM_ID}").status_code == 401
 
+    def test_rename_room(self, test_client):
+        assert test_client.patch(f"/api/v1/rooms/{ROOM_ID}", json={"name": "Flat"}).status_code == 401
+
 
 class TestRoomsAuthenticated:
     def test_create_room_makes_creator_admin(self, test_client, make_user):
@@ -157,3 +160,71 @@ class TestRoomsAuthenticated:
 
         r = test_client.delete(f"/api/v1/rooms/{room['id']}", headers=auth_headers(member))
         assert r.status_code == 403
+
+
+class TestRoomNames:
+    def test_create_room_with_name(self, test_client, make_user):
+        admin = make_user("named-admin@example.com")
+        r = test_client.post("/api/v1/rooms", json={"name": "  Flat 4B  "}, headers=auth_headers(admin))
+        assert r.status_code == 201
+        assert r.json()["name"] == "Flat 4B"
+
+    def test_create_room_without_name_still_works(self, test_client, make_user):
+        admin = make_user("unnamed-admin@example.com")
+        no_body = test_client.post("/api/v1/rooms", headers=auth_headers(admin))
+        empty_body = test_client.post("/api/v1/rooms", json={}, headers=auth_headers(admin))
+        assert no_body.status_code == 201 and no_body.json()["name"] is None
+        assert empty_body.status_code == 201 and empty_body.json()["name"] is None
+
+    def test_invalid_room_names_are_422(self, test_client, make_user):
+        admin = make_user("bad-name-admin@example.com")
+        for name in ["", "   ", "x" * 51]:
+            r = test_client.post("/api/v1/rooms", json={"name": name}, headers=auth_headers(admin))
+            assert r.status_code == 422, name
+        assert test_client.post("/api/v1/rooms", json={"name": "x" * 50}, headers=auth_headers(admin)).status_code == 201
+
+    def test_name_in_list_summary_and_dashboard(self, test_client, make_user, make_room):
+        admin = make_user("name-everywhere@example.com")
+        room = make_room(admin, name="Goa trip")
+        headers = auth_headers(admin)
+
+        [listed] = test_client.get("/api/v1/rooms", headers=headers).json()
+        assert listed["name"] == "Goa trip"
+        assert test_client.get(f"/api/v1/rooms/{room['id']}", headers=headers).json()["name"] == "Goa trip"
+        assert test_client.get(f"/api/v1/rooms/{room['id']}/dashboard", headers=headers).json()["room"]["name"] == "Goa trip"
+
+    def test_admin_renames_room(self, test_client, make_user, make_room):
+        admin = make_user("rename-admin@example.com")
+        room = make_room(admin)
+
+        r = test_client.patch(f"/api/v1/rooms/{room['id']}", json={"name": " New name "}, headers=auth_headers(admin))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["id"] == room["id"]
+        assert body["name"] == "New name"
+        assert body["admin_user_id"] == admin["id"]
+        [listed] = test_client.get("/api/v1/rooms", headers=auth_headers(admin)).json()
+        assert listed["name"] == "New name"
+
+    def test_rename_requires_admin(self, test_client, make_user, make_room, add_member):
+        admin = make_user("rename-admin2@example.com")
+        member = make_user("rename-member@example.com")
+        outsider = make_user("rename-outsider@example.com")
+        room = make_room(admin, name="Original")
+        add_member(room["id"], member)
+
+        assert test_client.patch(f"/api/v1/rooms/{room['id']}", json={"name": "Hijack"}, headers=auth_headers(member)).status_code == 403
+        assert test_client.patch(f"/api/v1/rooms/{room['id']}", json={"name": "Hijack"}, headers=auth_headers(outsider)).status_code == 403
+        assert test_client.get(f"/api/v1/rooms/{room['id']}", headers=auth_headers(admin)).json()["name"] == "Original"
+
+    def test_rename_validation(self, test_client, make_user, make_room):
+        admin = make_user("rename-bad@example.com")
+        room = make_room(admin)
+        for body in [{}, {"name": None}, {"name": "  "}, {"name": "x" * 51}]:
+            r = test_client.patch(f"/api/v1/rooms/{room['id']}", json=body, headers=auth_headers(admin))
+            assert r.status_code == 422, body
+
+    def test_rename_unknown_room_is_404(self, test_client, make_user):
+        user = make_user("rename-404@example.com")
+        r = test_client.patch(f"/api/v1/rooms/{ROOM_ID}", json={"name": "Nope"}, headers=auth_headers(user))
+        assert r.status_code == 404

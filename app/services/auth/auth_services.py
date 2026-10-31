@@ -13,6 +13,7 @@ from app.models.auth.auth_model import (
 from app.utils.auth_providers import verify_provider_token
 from app.utils.jwt_utils import access_token_expires_in, create_jwt, generate_refresh_token, hash_refresh_token
 from app.events.publisher import publish_event
+from app.cache.auth_cache import invalidate_cached_user
 from db.config import get_refresh_token_expiry_days
 import redis
 
@@ -54,6 +55,8 @@ def login(conn: Connection, provider: str, token: str, redis_client: redis.Redis
         name=user_info["name"],
         profile=user_info["picture"],
     )
+    # The upsert may have filled an empty name or photo; drop the copy get_current_user caches.
+    invalidate_cached_user(redis_client, user["id"])
     if user["inserted"]:
         publish_event(redis_client, event_type="welcome", payload={"email": user_info["email"], "name": user_info["name"]})
 

@@ -7,11 +7,20 @@ from app.models.rooms.schemas import (
 )
 
 
-def insert_room(conn: Connection) -> dict:
+def insert_room(conn: Connection, name: str | None) -> dict:
     row = conn.execute(
-        text('INSERT INTO "Rooms" DEFAULT VALUES RETURNING id'),
+        text('INSERT INTO "Rooms" (name) VALUES (:name) RETURNING id, name'),
+        {"name": name},
     ).fetchone()
     return InsertRoomResponse(**row._mapping).model_dump()
+
+
+def update_room_name(conn: Connection, room_id: int, name: str) -> bool:
+    row = conn.execute(
+        text('UPDATE "Rooms" SET name = :name WHERE id = :room_id RETURNING id'),
+        {"name": name, "room_id": room_id},
+    ).fetchone()
+    return row is not None
 
 
 def insert_user_room(conn: Connection, user_id: int, room_id: int, role: str = "Admin") -> None:
@@ -27,7 +36,7 @@ def insert_user_room(conn: Connection, user_id: int, room_id: int, role: str = "
 def get_rooms_for_user(conn: Connection, user_id: int) -> list[dict]:
     rows = conn.execute(
         text("""
-            SELECT r.id,
+            SELECT r.id, r.name,
                    (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
                    a.email AS admin, a.id AS admin_user_id, a.name AS admin_name
             FROM "Rooms" r
@@ -74,7 +83,7 @@ def get_member_previews(conn: Connection, room_ids: list[int], per_room: int = 4
 def get_room_by_id(conn: Connection, room_id: int) -> dict | None:
     row = conn.execute(
         text("""
-            SELECT r.id,
+            SELECT r.id, r.name,
                    (SELECT COUNT(*) FROM "UserRooms" WHERE room_id = r.id) AS members,
                    a.email AS admin, a.id AS admin_user_id, a.name AS admin_name
             FROM "Rooms" r

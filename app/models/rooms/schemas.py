@@ -3,10 +3,12 @@ from pydantic import BaseModel
 
 class InsertRoomResponse(BaseModel):
     id: int
+    name: str | None
 
 
 class ListRoomsResponse(BaseModel):
     id: int
+    name: str | None
     members: int
     admin: str | None
     admin_user_id: int | None

@@ -108,8 +108,8 @@ def make_user(conn):
 
 @pytest.fixture
 def make_room(conn):
-    def _make_room(admin_user: dict) -> dict:
-        room = insert_room(conn)
+    def _make_room(admin_user: dict, name: str | None = None) -> dict:
+        room = insert_room(conn, name)
         insert_user_room(conn, admin_user["id"], room["id"], role="Admin")
         return room
 

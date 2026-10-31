@@ -21,21 +21,19 @@ Open work first, shipped work below for reference. See [PLAN.md](PLAN.md) for th
 - [ ] If the payer is not in `participant_user_ids` on **create**, no split row records `amount_paid`, so the balances for that expense don't net to zero. Edits already require the payer to stay in the split; decide whether creation should too.
 - [ ] Share rounding: `round(money / n, 2)` per participant can leave a cent of drift per expense. Assign the remainder to one participant so splits always sum to `money`.
 - [ ] `Spendings.money` is `bigint` while the API accepts fractional amounts and splits are `numeric(10,2)` — confirm whether fractional expenses are meant to be supported and align the column.
-- [ ] `auth:user:{id}` is never invalidated, so a name/avatar refreshed at login stays stale in `current_user` for up to 7 days. Call `invalidate_cached_user` from `auth_services.login` (the helper exists and is unused). Folded into Guest access Phase B below.
 - [ ] Settle-all only verifies the members the client sends. Decide whether to require every member with a non-zero balance.
 - [ ] Events are published before the request's transaction commits; a later rollback would leave a `welcome` / `expense_split` event for something that didn't happen.
 
 ### Guest access & growth (PLAN.md Phase 12)
 Design, rules and open decisions: [GUEST_ACCESS.md](GUEST_ACCESS.md). Build the phases in order; each one needs a dbmate migration where noted, e2e tests, the matching doc updates (move rules from GUEST_ACCESS.md into DOMAIN / AUTH / ARCHITECTURE) and a CHANGELOG entry.
 
-**Before Phase B onwards:** settle open decisions 2–5 in GUEST_ACCESS.md.
+**Before Phase C onwards:** settle open decisions 2, 3 and 5 in GUEST_ACCESS.md.
 
-**A — Remove the email dependency** — done (migration `20261030120000`); see the Done section below. Still to do: apply the migration to Supabase dev (backup first), then regenerate `db/schema.sql`.
+**A — Remove the email dependency** — done (migration `20261030120000`, applied to Supabase on 2026-10-30); see the Done section below. Still to do: regenerate `db/schema.sql`.
 
-**B — Room names and profile edits**
-- [ ] `POST /rooms` with optional `{name}`; `name` in all room responses; `PATCH /rooms/{room_id}` (Admin)
-- [ ] New `users` domain: `GET` / `PATCH /users/me` (`name`, `avatar`); invalidate `auth:user:{id}`
-- [ ] `upsert_user` fills `name` / `profile` only when empty; login invalidates `auth:user:{id}` (behaviour change → CHANGELOG)
+**B — Room names and profile edits** — done; see the Done section below. Follow-ups:
+- [ ] Avatar upload: store images on S3 / Cloudflare R2 (e.g. a presigned-URL endpoint), then add the bucket host to `AVATAR_ALLOWED_HOSTS`. Today `PATCH /users/me` only accepts a link
+- [ ] Clients: ask for a room name on create, show a fallback for `name: null`, add rename (Admin) and a profile edit screen
 
 **C — Guest sign-up**
 - [ ] `POST /auth/guest` → `type = 'guest'`, normal token pair, no `welcome` event; `type` on `get_current_user` and its cache
@@ -133,6 +131,12 @@ Designed but deliberately not built: the `WRITE_PRECOMPUTED_SPLITS` feature flag
 - [x] Payer lookups by `Spendings.user_id` (expenses, member detail, dashboard, splits); `user_id` expense filter
 - [x] Settle-all accepts `user_id` or `user_email`
 - [x] `admin_user_id` / `admin_name` on room responses; JWT `email` claim optional; email fields nullable
+
+### Guest access — Phase B
+- [x] Optional `name` on `POST /rooms` (1–50 chars, trimmed), `name` in every room response, `PATCH /rooms/{room_id}` (Admin)
+- [x] `room_name` on invite create / validate responses
+- [x] New `users` domain: `GET` / `PATCH /users/me` (`name`, `avatar` URL on `AVATAR_ALLOWED_HOSTS`); edits invalidate `auth:user:{id}`
+- [x] Login fills `name` / `profile` only when empty and invalidates `auth:user:{id}`
 
 ### Invites
 - [x] `POST /api/v1/rooms/{room_id}/invites` — Admin

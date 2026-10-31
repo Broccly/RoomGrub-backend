@@ -1,11 +1,18 @@
 import redis
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import Connection
 from db.engine import db_conn
 from db.redis_client import redis_conn
 from app.dependencies.current_user import get_current_user
 from app.dependencies.room_access import require_room_admin, require_room_member
-from app.api.rooms.schemas import RoomListItem, RoomResponse, RoomSummary, DashboardResponse
+from app.api.rooms.schemas import (
+    CreateRoomRequest,
+    DashboardResponse,
+    RenameRoomRequest,
+    RoomListItem,
+    RoomResponse,
+    RoomSummary,
+)
 from app.services.rooms import rooms_services
 
 router = APIRouter(prefix="/api/v1/rooms", tags=["Rooms"])
@@ -21,10 +28,25 @@ def list_rooms(
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
 def create_room(
+    body: CreateRoomRequest | None = None,
     conn: Connection = Depends(db_conn),
     current_user: dict = Depends(get_current_user),
 ) -> RoomResponse:
-    return rooms_services.create_room(conn, current_user=current_user)
+    name = body.name if body else None
+    return rooms_services.create_room(conn, current_user=current_user, name=name)
+
+
+@router.patch("/{room_id}", response_model=RoomResponse)
+def rename_room(
+    room_id: int,
+    body: RenameRoomRequest,
+    conn: Connection = Depends(db_conn),
+    membership: dict = Depends(require_room_admin),
+) -> RoomResponse:
+    try:
+        return rooms_services.rename_room(conn, room_id, body.name)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/{room_id}", response_model=RoomSummary)

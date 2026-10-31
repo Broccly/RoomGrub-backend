@@ -40,6 +40,7 @@ Supabase dev database instead, point these at it — and read
 | `JWT_ACCESS_EXPIRY_MINUTES` | no | `15` | Access token lifetime. Replaced `JWT_EXPIRY_HOURS`, which is no longer read — remove it from your `.env` |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | no | `90` | How long a device can stay idle before its refresh token expires and it is signed out |
 | `GOOGLE_CLIENT_ID` | yes | placeholder | OAuth client ID that Google `id_token`s must be issued for |
+| `AVATAR_ALLOWED_HOSTS` | no | `lh3.googleusercontent.com,platform-lookaside.fbsbx.com` | Comma-separated hosts an avatar URL may point at (`PATCH /users/me`). Setting it replaces the default, so keep the provider hosts and add the S3 / R2 bucket host |
 
 ### Redis
 

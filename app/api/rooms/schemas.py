@@ -1,8 +1,22 @@
-from pydantic import BaseModel
+from typing import Annotated
+from pydantic import BaseModel, StringConstraints
+
+RoomName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+
+
+class CreateRoomRequest(BaseModel):
+    # Optional so clients that send no body keep working.
+    name: RoomName | None = None
+
+
+class RenameRoomRequest(BaseModel):
+    name: RoomName
 
 
 class RoomResponse(BaseModel):
     id: int
+    # None for rooms created before rooms had names.
+    name: str | None
     members: int
     # Email of the room's longest-standing Admin; None if that Admin has no email.
     admin: str | None

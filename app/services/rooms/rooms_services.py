@@ -4,6 +4,7 @@ from sqlalchemy import Connection
 from app.models.rooms.rooms_model import (
     insert_room,
     insert_user_room,
+    update_room_name,
     get_rooms_for_user,
     get_member_previews,
     get_room_by_id,
@@ -17,8 +18,8 @@ from app.models.members.members_model import get_members
 from app.cache.auth_cache import invalidate_all_room_access_for_room
 
 
-def create_room(conn: Connection, current_user: dict) -> dict:
-    room = insert_room(conn)
+def create_room(conn: Connection, current_user: dict, name: str | None = None) -> dict:
+    room = insert_room(conn, name)
     insert_user_room(conn, user_id=current_user["id"], room_id=room["id"], role="Admin")
     return {
         **room,
@@ -27,6 +28,12 @@ def create_room(conn: Connection, current_user: dict) -> dict:
         "admin_user_id": current_user["id"],
         "admin_name": current_user["name"],
     }
+
+
+def rename_room(conn: Connection, room_id: int, name: str) -> dict:
+    if not update_room_name(conn, room_id, name):
+        raise LookupError("Room not found")
+    return get_room_by_id(conn, room_id)
 
 
 def list_rooms(conn: Connection, current_user: dict) -> list[dict]:

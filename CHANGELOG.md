@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POST /rooms/{room_id}/splits/settle-all` accepts `user_id` per member; `user_email` is still accepted, and one of the two is required (`422`)
 - `GET /rooms/{room_id}/expenses` takes a `user_id` (payer) filter
 - Room responses (`GET` / `POST /rooms`, `GET /rooms/{room_id}`, dashboard) include `admin_user_id` and `admin_name`. The three admin fields now always describe the room's longest-standing Admin; before, `admin` was an arbitrary Admin
+- Room names (guest access Phase B): `POST /rooms` takes an optional `{name}` (1–50 characters after trimming, else `422`; no body still works), every room response includes `name` (`null` for older rooms), and `PATCH /rooms/{room_id}` lets an Admin rename the room
+- Invite responses (`POST /rooms/{room_id}/invites`, `GET /invites/{token}`) include `room_name`
+- `GET /users/me` (own `id`, `email`, `name`, `profile`, `type`) and `PATCH /users/me` to edit your own `name` and avatar. The avatar is a link stored in `profile`: an `https` URL on a host in the new optional `AVATAR_ALLOWED_HOSTS` setting (default: the Google and Facebook photo hosts); `null` removes it
 
 ### Changed
 
@@ -21,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The access token omits the `email` claim when the user has no email
 - `Users.uid` and `Rooms.uid` are stable UUIDs generated on insert; existing values were regenerated, and login no longer rewrites `Users.uid` as `"<provider>:<email>"`. Neither is exposed by the API
 - Several users can share the same avatar (`Users_profile_key` dropped)
+- Login no longer overwrites a user's name and avatar with the provider's on every sign-in: the provider's values only fill ones that are empty, so edits made with `PATCH /users/me` stick. Login also clears the cached user (`auth:user:{id}`), which was never invalidated before, so a changed name or photo could stay stale for up to 7 days
 
 - Exiting a room (`DELETE /rooms/{room_id}/members/me`) and removing a member (`DELETE /rooms/{room_id}/members/{user_id}`) are now blocked (`400`) while the member is part of any unsettled expense, even when their net balance is zero. This replaces the net-balance check, which it covers: a balance only moves through unsettled expenses. Unsettled expenses can still be edited or deleted, which would otherwise change a departed member's balance or drop a departed payer's credit. Settle the room first (`members_model.has_unsettled_splits`)
 - `members_services.exit_room` and `remove_member` raise plain exceptions; the router converts them, with status codes and messages unchanged

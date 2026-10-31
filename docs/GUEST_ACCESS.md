@@ -1,6 +1,6 @@
 # RoomGrub Backend — Guest Access & Growth (design spec)
 
-**Status: planned — nothing in this document is built yet.** It is the design for [PLAN.md](PLAN.md) Phase 12. The checklist is in [TODOS.md](TODOS.md). [DOMAIN.md](DOMAIN.md), [AUTH.md](AUTH.md) and [ARCHITECTURE.md](ARCHITECTURE.md) keep describing what is built today. When a phase below ships, move its rules into those docs and mark the phase done here.
+**Status: Phases A and B are built; C–F are planned.** It is the design for [PLAN.md](PLAN.md) Phase 12. The checklist is in [TODOS.md](TODOS.md). [DOMAIN.md](DOMAIN.md), [AUTH.md](AUTH.md) and [ARCHITECTURE.md](ARCHITECTURE.md) keep describing what is built today. When a phase below ships, move its rules into those docs and mark the phase done here.
 
 ---
 
@@ -65,20 +65,24 @@ Migration `20261030120000_users_type_and_room_cleanup`, plus the code changes be
 
 ---
 
-## Phase B: room names and profile edits (features 4 and 2)
+## Phase B: room names and profile edits (features 4 and 2) — done
+
+No migration (`Rooms.name` came with Phase A). All changes are additive for current clients. The rules now live in DOMAIN.md, AUTH.md and ARCHITECTURE.md.
 
 **Room name**
-- `POST /rooms` takes an optional body `{ "name": str }`, 1–50 characters after trimming. It is optional on the server because current clients send no body. The new clients make it required in the UI.
-- `name` is added to `RoomResponse`, so it appears in the list, create, summary and dashboard responses. It is `null` for old rooms; clients show a fallback.
-- `PATCH /rooms/{room_id}` `{ "name" }` lets an Admin rename the room.
+- `POST /rooms` takes an optional body `{ "name" }`: 1–50 characters after trimming, else 422. A request with no body still works, for current clients. The new clients make the name required in the UI.
+- `name` is in every room response (list, create, summary, dashboard). It is `null` for old rooms; clients show a fallback. Old rooms are not backfilled.
+- `PATCH /rooms/{room_id}` `{ "name" }`: Admin only; returns the room.
+- `GET /invites/{token}` and `POST /rooms/{room_id}/invites` return `room_name`, so the invite screen can name the room.
 
 **Profile**
-- New domain `users` with `PATCH /api/v1/users/me` `{ "name"?, "avatar"? }` and `GET /api/v1/users/me`, open to any authenticated user.
-  - `name`: 1–50 characters after trimming, never empty.
-  - `avatar`: stored in `Users.profile`. See open decision 4 for what values are allowed.
+- New `users` domain: `GET /users/me` returns `id`, `email`, `name`, `profile`, `type`; `PATCH /users/me` `{ "name"?, "avatar"? }`, for any signed-in user.
+  - `name`: 1–50 characters after trimming; can't be null (422).
+  - `avatar`: a link only, stored in `Users.profile`. It must be an `https` URL on a host in `AVATAR_ALLOWED_HOSTS` (default: the Google and Facebook photo hosts), else 400. `null` removes it. Image upload (S3 / R2) is a later step.
+  - A field left out is unchanged; an empty body is 400.
   - Invalidates `auth:user:{id}`.
-- `upsert_user` on login fills `name` and `profile` only when they are empty. It no longer overwrites an edited profile with the provider's values. **This is a behaviour change**; note it in the CHANGELOG.
-- Login also invalidates `auth:user:{id}`. This closes the existing TODO.
+- Login fills `name` and `profile` from the provider only when they are empty, so edits are never overwritten (a removed avatar comes back from the provider on the next login). Login also invalidates `auth:user:{id}`.
+- `type` is read from the database by `/users/me`; `get_current_user` still doesn't carry it (Phase C).
 
 ---
 
@@ -191,7 +195,7 @@ At most one active link per room (partial unique index on `room_id WHERE revoked
 | 1 | ~~Real `NULL` emails, or made-up ones?~~ | Decided: real `NULL`s (Phase A, done) |
 | 2 | How do we handle a guest losing their session (uninstall, cleared data, 90 days idle)? | v1: accept it, and have clients push linking. Consider a longer `REFRESH_TOKEN_EXPIRY_DAYS` for guests. A recovery code can come later |
 | 3 | Do old app versions break on `null` emails? | Check before Phase D; gate Phase D on a minimum client version if they do |
-| 4 | Avatar values: free URL, preset keys, or uploads? | Preset keys (e.g. `preset:fox`) plus provider photo URLs. Uploads need storage and are out of scope |
+| 4 | ~~Avatar values: free URL, preset keys, or uploads?~~ | Decided: a URL only, on an allowed host (`AVATAR_ALLOWED_HOSTS`). Images will be stored on S3 / R2; the upload flow comes later (Phase B, done) |
 | 5 | Who can see and share the room link: any member or Admins only? | Any member can read and share it; only Admins create, rotate or disable it |
 | 6 | Should a room whose only Admin is a guest get special handling (that Admin's session could be lost)? | Not in v1. Revisit together with decision 2 |
 | 7 | Read-only public view of a room without joining? | Out of scope. The link is for joining |

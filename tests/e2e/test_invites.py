@@ -22,12 +22,13 @@ class TestInvitesUnauthenticated:
 class TestInvitesAuthenticated:
     def test_create_invite(self, test_client, make_user, make_room):
         admin = make_user("admin@example.com", profile="https://example.com/a.png")
-        room = make_room(admin)
+        room = make_room(admin, name="Flat 4B")
 
         r = test_client.post(f"/api/v1/rooms/{room['id']}/invites", headers=auth_headers(admin))
         assert r.status_code == 201
         body = r.json()
         assert body["room_id"] == room["id"]
+        assert body["room_name"] == "Flat 4B"
         assert body["invited_by_email"] == admin["email"]
         assert body["invited_by_profile"] == admin["profile"]
         assert body["days_left"] == 7
@@ -49,6 +50,14 @@ class TestInvitesAuthenticated:
         r = test_client.get(f"/api/v1/invites/{token}")
         assert r.status_code == 200
         assert r.json()["room_id"] == room["id"]
+        assert r.json()["room_name"] is None
+
+    def test_validate_invite_shows_room_name(self, test_client, make_user, make_room):
+        admin = make_user("admin-named-invite@example.com")
+        room = make_room(admin, name="Goa trip")
+        token = test_client.post(f"/api/v1/rooms/{room['id']}/invites", headers=auth_headers(admin)).json()["token"]
+
+        assert test_client.get(f"/api/v1/invites/{token}").json()["room_name"] == "Goa trip"
 
     def test_validate_invite_unknown_token(self, test_client):
         r = test_client.get(f"/api/v1/invites/{TOKEN}")

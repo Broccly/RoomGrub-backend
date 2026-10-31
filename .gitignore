@@ -9,3 +9,5 @@ __pycache__/
 fcm-key.json
 .venv
 .env
+
+prod.env

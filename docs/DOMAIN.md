@@ -20,8 +20,8 @@ A registered person, created on first login (Google or Facebook — see [AUTH.md
 | id         | bigint PK | Used as `sub` in the JWT and as FK everywhere new |
 | uid        | varchar   | Stable UUID, generated on insert, never changes. Not exposed by the API |
 | email      | varchar   | Unique, nullable (guests and placeholders will have none). Login matches users by it |
-| name       | text      | Refreshed from the provider on each login      |
-| profile    | text      | Avatar URL. Several users may share one        |
+| name       | text      | Set from the provider at sign-up; editable by the user. A later login only fills it when empty |
+| profile    | text      | Avatar URL. Set from the provider at sign-up; editable by the user (`avatar` in `PATCH /users/me`). A later login only fills it when empty. Several users may share one |
 | type       | text      | `registered` / `guest` / `placeholder`. Only `registered` exists today — see [GUEST_ACCESS.md](GUEST_ACCESS.md) |
 | created_at | timestamp |                                                |
 
@@ -32,10 +32,10 @@ A shared household / group. Deliberately thin — member count and admin are **d
 |------------|-----------|------------------------------------------|
 | id         | bigint PK |                                          |
 | uid        | varchar   | Stable UUID, generated on insert. Not exposed by the API |
-| name       | text      | Nullable. Not exposed by the API yet (Phase B of GUEST_ACCESS.md) |
+| name       | text      | Nullable: set on create, renamed by an Admin. 1–50 chars after trimming. `null` for rooms created before names existed; clients show a fallback |
 | created_at | timestamp |                                          |
 
-API responses expose `members` (count of `UserRooms` rows) and the room's longest-standing Admin as `admin` (their email, or null), `admin_user_id` and `admin_name`. `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
+API responses expose `name`, `members` (count of `UserRooms` rows) and the room's longest-standing Admin as `admin` (their email, or null), `admin_user_id` and `admin_name`. `GET /rooms` also returns `member_preview` per room: the first 4 members by join date as `{profile, label}`, where `label` is the member's name, or their email when the name is empty — just enough to draw avatars.
 
 ### UserRooms (membership)
 Many-to-many join between Users ↔ Rooms with a role.
@@ -171,8 +171,15 @@ A token is normally valid when `used_at` and `revoked_at` are null and `expires_
 ### Roles
 - A room's creator becomes its first `Admin`. A room can have more than one Admin.
 - An Admin cannot demote themselves, cannot remove themselves, and cannot exit the room — exiting is only open to non-admins.
-- Only Admins can: add expenses for others, edit or delete other people's expenses, change member roles, remove members, create invite links, settle the room, delete the room.
+- Only Admins can: add expenses for others, edit or delete other people's expenses, change member roles, remove members, create invite links, settle the room, rename the room, delete the room.
 - Any member can add an expense they paid for, edit or delete their own unsettled expenses (see below), and read everything in the room.
+
+### Profile (name and avatar)
+- Any signed-in user can edit their own `name` and avatar with `PATCH /users/me`. Nobody can edit another user's profile.
+- `name`: 1–50 characters after trimming; it can't be removed.
+- Avatar: an `https` URL whose host is in `AVATAR_ALLOWED_HOSTS` (see SETUP.md), stored in `Users.profile`. `null` removes it. The backend only stores the link; images are hosted elsewhere (S3 / R2 planned).
+- Login never overwrites an edited profile: the provider's name and photo only fill values that are empty. So a user who removes their avatar gets the provider photo back on their next login.
+- Edits show up everywhere the user appears (members, splits, room previews), since those read `Users` directly.
 
 ### Adding an expense
 1. `money` must be greater than 0.
@@ -255,7 +262,6 @@ All of these are best-effort and never fail the request.
 Not built yet. The design is in [GUEST_ACCESS.md](GUEST_ACCESS.md). What it changes in this domain:
 
 - **Users.type** gains `guest` (signs up with only a name and gets RoomGrub tokens) and `placeholder` (a friend an Admin adds to one room by name; can't sign in until claimed) rows. The column, nullable `email` and `user_id`-based payer lookups are already in place (Phase A).
-- **Rooms.name** becomes part of the API: set on create, renamed by an Admin.
 - **room_share_links** (new): a reusable, revocable join link per room, alongside the single-use `Invite`.
 - **Merging users**: claiming a placeholder through a share link, or linking a guest to an existing account, moves the source user's memberships, expenses, splits and balances to the target. Refused if both are members of the same room.
 

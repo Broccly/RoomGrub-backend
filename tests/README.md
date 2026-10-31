@@ -55,7 +55,7 @@ Redis is needed. Request the `fake_redis` fixture to assert on published events 
 ## Fixtures
 
 - `make_user(email, name=None, profile=None)` — upserts a `Users` row.
-- `make_room(admin_user)` — creates a room with `admin_user` as Admin.
+- `make_room(admin_user, name=None)` — creates a room with `admin_user` as Admin.
 - `add_member(room_id, user, role="Member")` — adds a user to a room.
 - `make_expense(room_id, user_email, money=10.0, material="test item")` — inserts an expense, splits it evenly across the room's current members, and updates their balances.
 - `auth_headers(user)` — builds a Bearer token for a user dict (must include `id`, `email`). A plain function, imported from `conftest`, not a fixture.

@@ -99,7 +99,7 @@ class TestAuth:
         payload = json.loads(events[0]["payload"])
         assert payload == {"email": "newuser@example.com", "name": "New User"}
 
-    def test_login_upserts_existing_user_by_email(self, test_client, monkeypatch, make_user, fake_redis):
+    def test_login_keeps_edited_name_and_fills_empty_profile(self, test_client, monkeypatch, make_user, fake_redis):
         existing = make_user("existing@example.com", name="Old Name", profile=None)
 
         monkeypatch.setattr(
@@ -116,10 +116,40 @@ class TestAuth:
         assert r.status_code == 200
         body = r.json()
         assert body["user"]["id"] == existing["id"]
-        assert body["user"]["name"] == "Updated Name"
+        # The user's own name wins; the provider photo only fills the empty profile.
+        assert body["user"]["name"] == "Old Name"
         assert body["user"]["profile"] == "https://example.com/updated.png"
 
         assert fake_redis.streams.get("rg:emails", []) == []
+
+    def test_login_keeps_existing_profile_and_fills_empty_name(self, test_client, monkeypatch, make_user):
+        existing = make_user("existing@example.com", name="", profile="https://example.com/mine.png")
+        monkeypatch.setattr(
+            auth_services,
+            "verify_provider_token",
+            lambda provider, token: {
+                "email": "existing@example.com",
+                "name": "Provider Name",
+                "picture": "https://example.com/provider.png",
+            },
+        )
+
+        body = test_client.post("/api/v1/auth/login", json={"provider": "google", "token": "valid-token"}).json()
+        assert body["user"]["id"] == existing["id"]
+        assert body["user"]["name"] == "Provider Name"
+        assert body["user"]["profile"] == "https://example.com/mine.png"
+
+    def test_login_invalidates_cached_user(self, test_client, monkeypatch, make_user, fake_redis):
+        existing = make_user("cached@example.com", name="Cached")
+        fake_redis.setex(f"auth:user:{existing['id']}", 60, "{}")
+        monkeypatch.setattr(
+            auth_services,
+            "verify_provider_token",
+            lambda provider, token: {"email": "cached@example.com", "name": "Cached", "picture": None},
+        )
+
+        assert test_client.post("/api/v1/auth/login", json={"provider": "google", "token": "valid-token"}).status_code == 200
+        assert fake_redis.get(f"auth:user:{existing['id']}") is None
 
 
 class TestRefreshTokens:

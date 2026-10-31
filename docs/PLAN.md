@@ -84,10 +84,10 @@ Update the `RoomGrub` Next.js app to call this API instead of Server Actions:
 - ⬜ Readiness check that touches the DB
 - ⬜ Git tags per release
 
-### Phase 12 — Guest access & growth — planned
+### Phase 12 — Guest access & growth — in progress
 Remove the two growth blockers: you must sign in before you can use the app, and a group can't start until friends accept an invite. Full design and open decisions are in [GUEST_ACCESS.md](GUEST_ACCESS.md); the checklist is in [TODOS.md](TODOS.md). Guests are ordinary `Users` rows with a `type` (`registered` / `guest` / `placeholder`), so the split and balance engine is reused unchanged. Each sub-phase ships on its own and stays backward compatible with current clients.
 - ✅ **A — Remove the email dependency** (unreleased). `Users.type`, nullable `Users.email` and `Spendings."user"`, stable `uid`s for users and rooms, legacy `Rooms` / `Users` columns dropped, email-keyed queries and settle-all moved to `user_id`. No visible change
-- ⬜ **B — Room names and profile edits.** Optional `name` on `POST /rooms`, `PATCH /rooms/{room_id}`, `PATCH /users/me`; login stops overwriting an edited name/avatar
+- ✅ **B — Room names and profile edits** (unreleased). Optional `name` on `POST /rooms` and in every room response, `PATCH /rooms/{room_id}`, `GET` / `PATCH /users/me` (name, avatar URL), `room_name` on invites; login stops overwriting an edited name/avatar and invalidates the cached user
 - ⬜ **C — Guest sign-up.** `POST /auth/guest` (name, optional avatar) → normal token pair; per-IP rate limit
 - ⬜ **D — Friends added by name.** `POST /rooms/{room_id}/members/guests` creates a `placeholder` member an Admin can split with
 - ⬜ **E — Public room link.** Reusable, revocable `room_share_links`; public `GET /join/{token}` preview; `POST /join/{token}`, optionally claiming a placeholder

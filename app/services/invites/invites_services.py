@@ -5,6 +5,7 @@ from sqlalchemy import Connection
 from app.models.invites.invites_model import (
     insert_invite,
     get_invite_by_token,
+    get_room_name,
     update_invite_status,
     check_membership,
     insert_member,
@@ -19,6 +20,7 @@ def create_invite(conn: Connection, room_id: int, current_user: dict) -> dict:
     return {
         "token": token,
         "room_id": room_id,
+        "room_name": get_room_name(conn, room_id),
         "invited_by_email": current_user["email"],
         "invited_by_name": current_user.get("name") or current_user["email"] or "",
         "invited_by_profile": current_user.get("profile"),
@@ -47,6 +49,7 @@ def validate_invite(conn: Connection, token: str) -> dict:
     return {
         "token": invite["token"],
         "room_id": invite["room_id"],
+        "room_name": invite["room_name"],
         "invited_by_email": invite["invited_by_email"],
         "invited_by_name": invite["invited_by_name"] or invite["invited_by_email"] or "",
         "invited_by_profile": invite["invited_by_profile"],
